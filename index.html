@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ACC – Vérification d’éligibilité (centre libre · 2/10/20 km)</title>
+  <!-- Leaflet CSS (+ fallback) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <!-- Fonts (charte Echome) -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <style>
+    :root{--ink:#1c1c1c;--line:#e6eaea;--muted:#f7f8f8;--ok:#0f766e;--bad:#b91c1c;--brand:#37C3AF}
+    html,body{height:100%}
+    body{margin:0;font-family:'Open Sans', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;color:var(--ink);background:#fff}
+    /* Header ultra-compact */
+    header.slim{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:6px 8px}
+    .brand{display:flex;align-items:center;gap:8px}
+    .brand svg{height:26px;width:auto;border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+    .brand .name{font-family:'Montserrat',sans-serif;font-weight:700;letter-spacing:.3px}
+    .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;width:100%}
+    .group{display:flex;align-items:center;gap:8px}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#fff}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .prod{background:#6D28D9}.cons{background:#2e86de}.sdis{background:#E10600}
+    .btn{padding:6px 8px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#fff;cursor:pointer;font-weight:700}
+    .btn.icon{padding:6px 8px;min-width:36px;display:inline-flex;align-items:center;justify-content:center}
+    .btn.secondary{background:#fff;color:#0f4f47;border-color:var(--brand)}
+    select, input[type="number"], input[type="text"]{border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+    #status{margin:6px 8px 0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;font-size:14px}
+    #status.ok{background:rgba(55,195,175,.08);border-color:rgba(55,195,175,.45);color:#116a60}
+    #status.ko{background:#fff5f3;border-color:#f6d2cc}
+    #map{min-height:420px;margin:8px;border:1px solid var(--line);border-radius:12px;position:relative}
+    /* Drawer options avancées */
+    #drawer{position:fixed;inset:auto 0 0 auto;top:0;height:100vh;width:360px;max-width:92vw;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.06);transform:translateX(100%);transition:.25s ease;z-index:5000;display:flex;flex-direction:column}
+    #drawer.open{transform:none}
+    #drawer header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line)}
+    #drawer h2{font-family:'Montserrat',sans-serif;font-size:16px;margin:0}
+    #drawer .content{padding:12px;overflow:auto}
+    fieldset{border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:10px}
+    legend{padding:0 6px;color:#475569;font-size:12px}
+    textarea{width:100%;min-height:80px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:8px}
+    .small{font-size:12px;color:#64748b}
+    #searchResults ul{margin:6px 0 0 16px;padding:0}
+    #searchResults li{margin:2px 0}
+    #searchResults a{text-decoration:none;border-bottom:1px dashed #999;color:#111}
+    #searchResults a:hover{color:#000}
+    .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    /* Map legend overlay (screen) */
+    .legend-overlay{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;gap:10px;align-items:center;font-size:12px}
+    .legend-overlay .item{display:flex;align-items:center;gap:6px}
+
+    /* PRINT */
+    .print-header{display:none}
+    .print-legend{display:none}
+    @media print{
+      @page { size: A4 landscape; margin: 12mm; }
+      header.slim, #drawer, #status{ display:none !important; }
+      body{ background:#fff; }
+      .print-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+      .print-header .left{display:flex;align-items:center;gap:8px}
+      .print-header .brand svg{height:26px}
+      .print-header .title{font-family:'Montserrat',sans-serif;font-weight:700}
+      #map{ height:auto !important; min-height:0; margin:0; border:0 }
+      .legend-overlay{ display:none; }
+      .print-legend{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;margin-top:8px;font-size:12px}
+    }
+    @media (max-width: 720px){ header.slim{flex-wrap:wrap} .controls{gap:6px} }
+  </style>
+</head>
+<body>
+  <!-- BARRE ULTRA-COMPACTE -->
+  <header class="slim">
+    <div class="brand" role="img" aria-label="Echome Énergies">
+      <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
+      </svg>
+      <span class="name">Echome Énergies</span>
+    </div>
+
+    <div class="controls">
+      <!-- Types de points -->
+      <div class="group" role="radiogroup" aria-label="Type de point">
+        <label class="chip"><input type="radio" name="ptype" value="consumer" checked> <span class="dot cons"></span>Cons.</label>
+        <label class="chip"><input type="radio" name="ptype" value="producer"> <span class="dot prod"></span>Prod.</label>
+        <label class="chip"><input type="radio" name="ptype" value="sdis"> <span class="dot sdis"></span>SDIS</label>
+      </div>
+
+      <!-- Limite R -->
+      <div class="group">
+        <label class="small">R :</label>
+        <select id="limitSel">
+          <option value="2">2 km</option>
+          <option value="10">10 km</option>
+          <option value="20" selected>20 km</option>
+          <option value="custom">Perso</option>
+        </select>
+        <input id="customKm" type="number" min="0" step="0.1" placeholder="km" style="width:90px;display:none">
+        <label class="small"><input id="includeSdis" type="checkbox"> Inclure SDIS</label>
+      </div>
+
+      <!-- Actions rapides -->
+      <div class="group">
+        <button id="locateBtn" class="btn icon" title="Me localiser">📍</button>
+        <button id="fitBtn" class="btn icon" title="Ajuster la vue">🗺️</button>
+        <button id="dupBtn" class="btn icon" title="Dupliquer le projet">⧉</button>
+        <button id="printBtn" class="btn icon" title="Exporter en PDF">🖨️</button>
+        <button id="clearBtn" class="btn icon" title="Effacer tous les points">🗑️</button>
+        <button id="gearBtn" class="btn secondary" title="Options avancées">⚙️ Options</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- En-tête pour impression -->
+  <div class="print-header" id="printHeader">
+    <div class="left brand">
+      <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
+      </svg>
+      <span class="title">ACC – Vérification d’éligibilité (centre libre)</span>
+    </div>
+    <div class="right small" id="printMeta"></div>
+  </div>
+
+  <div id="status">Initialisation…</div>
+  <div id="map" aria-label="Carte interactive">
+    <div class="legend-overlay" aria-hidden="true">
+      <div class="item"><span class="dot prod"></span>Producteur</div>
+      <div class="item"><span class="dot cons"></span>Consommateur</div>
+      <div class="item"><span class="dot sdis"></span>SDIS</div>
+    </div>
+  </div>
+
+  <!-- Légende imprimée -->
+  <div class="print-legend">
+    <div class="dot prod"></div><div>Producteur</div>
+    <div class="dot cons"></div><div>Consommateur</div>
+    <div class="dot sdis"></div><div>SDIS</div>
+  </div>
+
+  <!-- Drawer (options avancées) -->
+  <aside id="drawer" aria-hidden="true" aria-label="Options avancées">
+    <header>
+      <h2>Options avancées</h2>
+      <button id="drawerClose" class="btn secondary">Fermer</button>
+    </header>
+    <div class="content">
+      <fieldset>
+        <legend>Projet</legend>
+        <div class="row">
+          <label class="small">Nom du projet :</label>
+          <input id="projName" type="text" placeholder="Projet 1" style="flex:1">
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="saveLocal" class="btn">Enregistrer (local)</button>
+          <select id="projList" style="flex:1"></select>
+          <button id="loadLocal" class="btn secondary">Charger</button>
+          <button id="delLocal" class="btn secondary">Supprimer</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="exportJson" class="btn">Exporter fichier</button>
+          <input id="importJson" type="file" accept="application/json">
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Import rapide</legend>
+        <div class="small">Format : <span class="small">Nom;Lat;Lon;Type</span> — Types : consumer / producer / sdis</div>
+        <textarea id="bulk" placeholder="Usine A;45.76;4.84;producer&#10;Collège B;45.77;4.86;consumer"></textarea>
+        <div style="margin-top:8px"><button id="importBtn" class="btn">Importer</button></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Export</legend>
+        <div><button id="exportCsvBtn" class="btn">Exporter CSV</button></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Rechercher une adresse</legend>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input id="searchQ" type="text" placeholder="Adresse, commune, code postal" style="flex:1">
+          <button id="searchBtn" class="btn">Rechercher</button>
+        </div>
+        <div id="searchResults" class="small" aria-live="polite" style="margin-top:6px"></div>
+        <div class="small" style="margin-top:6px">Géocodage : Photon OSM → repli Nominatim.</div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Producteur par défaut</legend>
+        <div class="small">Adresse par défaut : <em>210 Les Espinasses, 38250 Villard-de-Lans</em></div>
+        <div style="margin-top:6px"><button id="resetDefaultBtn" class="btn secondary">Réinitialiser le défaut</button></div>
+      </fieldset>
+
+      <div class="small" style="margin-top:10px">Points : <span id="count">Aucun point.</span></div>
+    </div>
+  </aside>
+
+  <!-- Leaflet JS (principal) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+  <script>
+    // Fallback si unpkg bloqué
+    (function ensureLeaflet(cb){ if(window.L){ cb(); return; } var s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js'; s.crossOrigin='anonymous'; s.referrerPolicy='no-referrer'; s.onload=cb; s.onerror=function(){ document.getElementById('status').textContent='Erreur : Leaflet bloqué par le réseau.'; }; document.head.appendChild(s); })(initApp);
+
+    function initApp(){
+      const statusEl = document.getElementById('status');
+      const mapEl = document.getElementById('map');
+      // Helpers
+      const eps = 1e-9; const toRad = d => d*Math.PI/180;
+      function haversineKm(a,b){ const R=6371; const dLat=toRad(b.lat-a.lat), dLon=toRad(b.lng-a.lng); const lat1=toRad(a.lat), lat2=toRad(b.lat); const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+      function splitLines(t){ return (t||'').split(/\r?\n/); }
+      function esc(s){ return String(s||'').replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c])); }
+      function fmtDate(d){ const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; }
+
+      // MEC utils
+      function projectLocal(pointsLL){ const lat0=pointsLL.reduce((s,p)=>s+p.lat,0)/pointsLL.length; const lon0=pointsLL.reduce((s,p)=>s+p.lng,0)/pointsLL.length; const P=pointsLL.map(p=>({x:(p.lng-lon0)*111.32*Math.cos(lat0*Math.PI/180), y:(p.lat-lat0)*111.32, ref:p})); return {lat0,lon0,P}; }
+      function unprojectLocal(lat0,lon0,x,y){ return {lat:lat0 + y/111.32, lng: lon0 + x/(111.32*Math.cos(lat0*Math.PI/180))}; }
+      function dist2(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
+      function circleBy2(a,b){ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,r:Math.sqrt(dist2(a,b))/2}; }
+      function circleBy3(a,b,c){ const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y; const E=A*(a.x+b.x)+B*(a.y+b.y); const F=C*(a.x+c.x)+D*(a.y+c.y); const G=2*(A*(c.y-b.y)-B*(c.x-b.x)); if(Math.abs(G)<1e-12) return null; const x=(D*E-B*F)/G, y=(A*F-C*E)/G, r=Math.hypot(x-a.x,y-a.y); return {x,y,r}; }
+      function inCircle(c,p){ return Math.hypot(c.x-p.x,c.y-p.y) <= c.r + 1e-9; }
+      function minimalEnclosingCircle(pointsLL){ if(pointsLL.length===0) return null; if(pointsLL.length===1) return {center:pointsLL[0], r:0}; const {lat0,lon0,P}=projectLocal(pointsLL); let best=null; for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ const c=circleBy2(P[i],P[j]); if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c; } for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) for(let k=j+1;k<P.length;k++){ const c=circleBy3(P[i],P[j],P[k]); if(!c) continue; if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c; } if(!best){ let max=-1,a=-1,b=-1; for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ const d=dist2(P[i],P[j]); if(d>max){max=d;a=i;b=j;} } best=circleBy2(P[a],P[b]); } const center=unprojectLocal(lat0,lon0,best.x,best.y); return {center, r:best.r}; }
+
+      // Carte + fallbacks tuiles
+      const map = L.map('map', { zoomControl:true }).setView([46.6, 2.0], 6);
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© OpenStreetMap' });
+      const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© Carto, © OpenStreetMap' });
+      osm.on('tileerror', ()=>{ if(!map.hasLayer(carto)) carto.addTo(map); if(map.hasLayer(osm)) map.removeLayer(osm); statusEl.textContent='Fond OSM bloqué → bascule vers Carto Light.'; });
+      osm.addTo(map);
+      L.control.scale({imperial:false, metric:true, maxWidth:120}).addTo(map);
+      function layout(){ const H=document.querySelector('header.slim'); const h=Math.max(420, window.innerHeight - H.getBoundingClientRect().height - 16); mapEl.style.height = h + 'px'; try{ map.invalidateSize(); }catch(_){ } }
+      window.addEventListener('resize', layout); setTimeout(layout, 50);
+
+      // État
+      const participants=[]; let uid=0; let accCircle=null; let accCenterMarker=null;
+      const colors={producer:'#6D28D9', consumer:'#2e86de', sdis:'#E10600'};
+      function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
+      function includeSdis(){ return document.getElementById('includeSdis').checked; }
+      function currentLimit(){ const sel=document.getElementById('limitSel').value; if(sel==='custom'){ const v=parseFloat(document.getElementById('customKm').value||'0'); return (isNaN(v)||v<=0)?20:v; } return parseFloat(sel); }
+      function updateCount(){ const c=document.getElementById('count'); if(!c) return; const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.'; }
+
+      function addPoint(lat,lng,type,name){ const id=++uid; const label=name||`${type} ${id}`; const m=L.circleMarker([lat,lng],{radius:7,color:colors[type]||'#333',weight:2,fillColor:colors[type]||'#333',fillOpacity:0.3}).addTo(map); const entry={id,name:label,type,lat,lng,marker:m}; m.bindTooltip(`${label} (${type})`);
+        const defaultBtnHtml = type==='producer' ? `<button class="btn" data-act="makedef" data-id="${id}">Définir comme producteur par défaut</button>` : '';
+        m.bindPopup(`<strong>${label}</strong><br>${type}<br><div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap"><button class="btn secondary" data-act="rename" data-id="${id}">Renommer</button><button class="btn secondary" data-act="delete" data-id="${id}">Supprimer</button>${defaultBtnHtml}</div>`);
+        m.on('popupopen', e=>{ const root=e.popup.getElement(); const ren=root.querySelector('button[data-act="rename"][data-id="'+id+'"]'); const del=root.querySelector('button[data-act="delete"][data-id="'+id+'"]'); const def=root.querySelector('button[data-act="makedef"][data-id="'+id+'"]'); if(ren) ren.addEventListener('click', ()=>{ const nn=prompt('Nouveau nom :', entry.name||''); if(nn&&nn.trim()){ entry.name=nn.trim(); m.setPopupContent(`<strong>${entry.name}</strong><br>${entry.type}<br><div style=\"margin-top:6px;display:flex;gap:6px;flex-wrap:wrap\"><button class=\"btn secondary\" data-act=\"rename\" data-id=\"${id}\">Renommer</button><button class=\"btn secondary\" data-act=\"delete\" data-id=\"${id}\">Supprimer</button>${defaultBtnHtml}</div>`); m.bindTooltip(`${entry.name} (${entry.type})`);} }); if(del) del.addEventListener('click', ()=> removePoint(id)); if(def) def.addEventListener('click', ()=>{ try{ localStorage.setItem('defaultProducer', JSON.stringify({lat:entry.lat,lng:entry.lng,name:entry.name||'Producteur'})); statusEl.className=''; statusEl.textContent='Producteur par défaut enregistré.'; }catch(_){ } }); });
+        m.on('contextmenu', ()=> removePoint(id)); participants.push(entry); refreshACC(); }
+      function removePoint(id){ const i=participants.findIndex(p=>p.id===id); if(i>-1){ map.removeLayer(participants[i].marker); participants.splice(i,1); refreshACC(); } }
+      map.on('click', e=> addPoint(e.latlng.lat, e.latlng.lng, selectedType()));
+
+      function clearAccCircle(){ if(accCircle){map.removeLayer(accCircle); accCircle=null;} if(accCenterMarker){map.removeLayer(accCenterMarker); accCenterMarker=null;} }
+      function styleInsideOutside(center, limitKm, eligible){ eligible.forEach(p=>{ const d = haversineKm(center, {lat:p.lat,lng:p.lng}); const inside = d <= limitKm + eps; p.marker.setStyle({ color: colors[p.type]||'#333', weight: inside? 3 : 2, fillColor: colors[p.type]||'#333', fillOpacity: inside? 0.5:0.15, opacity:1 }); }); }
+      function refreshACC(){ updateCount(); const limit=currentLimit(); const eligibles=participants.filter(p=> includeSdis()? true : p.type!=='sdis'); const hasProducer=eligibles.some(p=> p.type==='producer'); clearAccCircle(); if(!eligibles.length){ statusEl.className=''; statusEl.textContent='Ajoutez un producteur et des consommateurs (SDIS exclu par défaut).'; return; } if(!hasProducer){ statusEl.className=''; statusEl.textContent='Aucun producteur détecté : ajoutez au moins un point « Producteur ».'; return; } const mec=minimalEnclosingCircle(eligibles.map(p=>({lat:p.lat,lng:p.lng}))); accCircle=L.circle([mec.center.lat,mec.center.lng],{radius:currentLimit()*1000,color:'#6D28D9',weight:3,fill:false,opacity:0.95}).addTo(map); accCenterMarker=L.circleMarker([mec.center.lat,mec.center.lng],{radius:5,color:'#6D28D9',weight:2,fillOpacity:0.7}).addTo(map); const pass=mec.r<=limit+eps; styleInsideOutside(mec.center,limit,eligibles); if(pass){ statusEl.className='ok'; statusEl.innerHTML=`<strong>Conforme</strong> — Centre libre trouvé : cercle de rayon <strong>${limit} km</strong> englobe tous les participants éligibles.<br><span class="small">Centre suggéré : ${mec.center.lat.toFixed(5)}, ${mec.center.lng.toFixed(5)} · Rayon minimal requis : ${mec.r.toFixed(2)} km (≤ ${limit} km)</span>`; } else { const outside=eligibles.filter(p=> haversineKm(mec.center,{lat:p.lat,lng:p.lng}) > limit + eps).map(p=> p.name||p.type); statusEl.className='ko'; statusEl.innerHTML=`<strong>Non conforme</strong> — Aucun centre libre ne peut englober tous les participants dans <strong>${limit} km</strong>.<br><span class="small">Rayon minimal requis : ${mec.r.toFixed(2)} km (> ${limit} km). Points limitants : ${outside.join(', ')||'—'}</span>`; } }
+
+      // ====== Projets (sauvegarde / chargement / duplication) ======
+      function captureState(){ return {
+        name: (document.getElementById('projName').value||'Projet 1').trim()||'Projet 1',
+        settings: { limitSel: document.getElementById('limitSel').value, customKm: document.getElementById('customKm').value, includeSdis: includeSdis() },
+        participants: participants.map(p=>({name:p.name, lat:p.lat, lng:p.lng, type:p.type}))
+      }; }
+      function applyState(st){ // clear then add
+        participants.slice().forEach(p=> removePoint(p.id));
+        document.getElementById('projName').value = st.name || 'Projet';
+        document.getElementById('limitSel').value = st.settings?.limitSel || '20';
+        document.getElementById('customKm').value = st.settings?.customKm || '';
+        document.getElementById('customKm').style.display = (document.getElementById('limitSel').value==='custom')?'inline-block':'none';
+        document.getElementById('includeSdis').checked = !!(st.settings?.includeSdis);
+        (st.participants||[]).forEach(p=> addPoint(p.lat, p.lng, p.type, p.name));
+        refreshACC();
+      }
+      function lsKey(name){ return 'acc_project:'+name; }
+      function refreshProjectList(){ const sel=document.getElementById('projList'); const keys=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith('acc_project:')) keys.push(k.slice('acc_project:'.length)); } keys.sort((a,b)=>a.localeCompare(b)); sel.innerHTML=''; keys.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); }); }
+
+      document.getElementById('saveLocal').onclick = ()=>{ const st=captureState(); localStorage.setItem(lsKey(st.name), JSON.stringify(st)); refreshProjectList(); statusEl.textContent='Projet enregistré (local).'; };
+      document.getElementById('loadLocal').onclick = ()=>{ const sel=document.getElementById('projList'); const n=sel.value; if(!n) return; try{ const st=JSON.parse(localStorage.getItem(lsKey(n))); if(st) applyState(st); statusEl.textContent='Projet chargé.'; }catch(_){ statusEl.textContent='Chargement impossible.'; }};
+      document.getElementById('delLocal').onclick = ()=>{ const sel=document.getElementById('projList'); const n=sel.value; if(!n) return; localStorage.removeItem(lsKey(n)); refreshProjectList(); statusEl.textContent='Projet supprimé.'; };
+      document.getElementById('dupBtn').onclick = ()=>{ const base=(document.getElementById('projName').value||'Projet 1').trim()||'Projet 1'; const copyName=prompt('Nom de la copie :', base+' (copie)'); if(!copyName) return; const st=captureState(); st.name=copyName; localStorage.setItem(lsKey(copyName), JSON.stringify(st)); document.getElementById('projName').value=copyName; refreshProjectList(); statusEl.textContent='Projet dupliqué (local).'; };
+
+      document.getElementById('exportJson').onclick = ()=>{ const st=captureState(); const blob=new Blob([JSON.stringify(st,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=(st.name||'projet_acc')+'.json'; a.click(); URL.revokeObjectURL(url); };
+      document.getElementById('importJson').addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(!f) return; try{ const txt=await f.text(); const st=JSON.parse(txt); applyState(st); statusEl.textContent='Projet importé.'; }catch(_){ statusEl.textContent='Fichier invalide.'; } });
+
+      // ====== Impression / Export PDF ======
+      function updatePrintHeader(){ const name=(document.getElementById('projName').value||'Projet 1').trim()||'Projet 1'; const lim=currentLimit(); const inc=includeSdis()?'Oui':'Non'; const n=participants.length, np=participants.filter(p=>p.type==='producer').length, nc=participants.filter(p=>p.type==='consumer').length, ns=participants.filter(p=>p.type==='sdis').length; document.getElementById('printMeta').textContent = `${name} — R=${lim} km — SDIS inclus: ${inc} — Points: ${n} (Prod ${np}, Cons ${nc}, SDIS ${ns}) — ${fmtDate(new Date())}`; }
+      document.getElementById('printBtn').onclick = ()=>{ updatePrintHeader(); setTimeout(()=>{ try{ map.invalidateSize(); }catch(_){ } window.print(); }, 50); };
+      window.addEventListener('beforeprint', ()=>{ updatePrintHeader(); setTimeout(()=>{ try{ map.invalidateSize(); }catch(_){ } }, 50); });
+      window.addEventListener('afterprint', ()=>{ setTimeout(()=>{ try{ map.invalidateSize(); }catch(_){ } }, 100); });
+
+      // UI — micro-barre
+      document.getElementById('limitSel').addEventListener('change', (e)=>{ const v=e.target.value; const custom=document.getElementById('customKm'); custom.style.display = (v==='custom')?'inline-block':'none'; refreshACC(); });
+      document.getElementById('customKm').addEventListener('input', refreshACC);
+      document.getElementById('includeSdis').addEventListener('change', refreshACC);
+      document.getElementById('clearBtn').onclick = ()=>{ participants.slice().forEach(p=> removePoint(p.id)); };
+      document.getElementById('fitBtn').onclick = ()=>{ if(!participants.length) return; const g=L.featureGroup(participants.map(p=>p.marker)); map.fitBounds(g.getBounds().pad(0.25)); };
+
+      // Localisation (épingle verte)
+      let myMarker=null, myAccCircle=null; function clearMyLoc(){ if(myMarker){map.removeLayer(myMarker); myMarker=null;} if(myAccCircle){map.removeLayer(myAccCircle); myAccCircle=null;} }
+      function locateMe(){ if(!navigator.geolocation){ statusEl.className=''; statusEl.textContent='Géolocalisation non supportée.'; return; } navigator.geolocation.getCurrentPosition(pos=>{ const lat=pos.coords.latitude, lng=pos.coords.longitude, acc=pos.coords.accuracy||50; clearMyLoc(); const myIcon=L.divIcon({className:'myloc-pin', html:`<svg width=\"28\" height=\"28\" viewBox=\"0 0 32 32\" xmlns=\"http://www.w3.org/2000/svg\"><path d=\"M16 2C10.477 2 6 6.477 6 12c0 7 10 18 10 18s10-11 10-18C26 6.477 21.523 2 16 2z\" fill=\"#111827\"/><circle cx=\"16\" cy=\"12\" r=\"5\" fill=\"#34D399\"/></svg>`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-28]}); myMarker=L.marker([lat,lng],{icon:myIcon,zIndexOffset:1000}).addTo(map).bindTooltip('Vous êtes ici'); myAccCircle=L.circle([lat,lng],{radius:acc,color:'#34D399',weight:1,opacity:0.5,fillOpacity:0.06}).addTo(map); map.setView([lat,lng], 15); statusEl.className=''; statusEl.textContent=`Localisé (~±${Math.round(acc)} m).`; }, err=>{ statusEl.className=''; statusEl.textContent='Géolocalisation refusée / indisponible.'; }, {enableHighAccuracy:true, timeout:8000, maximumAge:30000}); }
+      document.getElementById('locateBtn').addEventListener('click', locateMe);
+
+      // Drawer (options avancées)
+      const drawer = document.getElementById('drawer');
+      document.getElementById('gearBtn').onclick = ()=>{ refreshProjectList(); drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); };
+      document.getElementById('drawerClose').onclick = ()=>{ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); };
+
+      // Géocodage (Photon → Nominatim)
+      async function geocodePhoton(q){ const url='https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lang=fr&limit=5'; const r=await fetch(url); if(!r.ok) throw new Error('Photon'); const j=await r.json(); return (j.features||[]).map(f=>{ const g=f.geometry, p=f.properties||{}; if(!g||!g.coordinates) return null; const lat=g.coordinates[1], lng=g.coordinates[0]; const label=[p.housenumber,p.street,p.name,p.city,p.postcode].filter(Boolean).join(' '); return {label: label || p.name || q, lat, lng}; }).filter(Boolean); }
+      async function geocodeNominatim(q){ const url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q='+encodeURIComponent(q); const r=await fetch(url,{headers:{'Accept':'application/json'}}); if(!r.ok) throw new Error('Nominatim'); const j=await r.json(); return j.map(o=>({label:o.display_name,lat:parseFloat(o.lat),lng:parseFloat(o.lon)})); }
+      async function searchAddress(q){ const box=document.getElementById('searchResults'); box.innerHTML='Recherche…'; let res=[]; try{ res=await geocodePhoton(q); }catch(_){ } if(!res.length){ try{ res=await geocodeNominatim(q); }catch(_){ } } if(!res.length){ box.innerHTML='Aucun résultat.'; return; } const ul=document.createElement('ul'); res.forEach(r=>{ const li=document.createElement('li'); li.innerHTML=`<a href=\"#\" data-lat=\"${r.lat}\" data-lng=\"${r.lng}\" data-label=\"${esc(r.label)}\">${esc(r.label)}</a>`; ul.appendChild(li); }); box.innerHTML=''; box.appendChild(ul); }
+      document.getElementById('searchBtn').addEventListener('click', ()=>{ const q=(document.getElementById('searchQ').value||'').trim(); if(q) searchAddress(q); });
+      document.getElementById('searchQ').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); const q=(e.target.value||'').trim(); if(q) searchAddress(q); } });
+      document.getElementById('searchResults').addEventListener('click', e=>{ const a=e.target.closest('a[data-lat]'); if(!a) return; e.preventDefault(); const lat=parseFloat(a.getAttribute('data-lat')), lng=parseFloat(a.getAttribute('data-lng')), label=a.getAttribute('data-label'); addPoint(lat,lng, selectedType(), label); map.setView([lat,lng], 15); });
+
+      // Import / Export simple
+      document.getElementById('importBtn').onclick = ()=>{ const txt=(document.getElementById('bulk').value||'').trim(); if(!txt) return; let ok=0,ko=0; splitLines(txt).forEach(line=>{ if(!line.trim()) return; const p=line.split(/[;,]|\t/).map(s=>s.trim()); if(p.length<4){ko++;return;} const [name,latS,lonS,typeS]=p; const lat=parseFloat(latS), lng=parseFloat(lonS); if(isNaN(lat)||isNaN(lng)){ko++;return;} let t=(typeS||'').toLowerCase(); if(t.startsWith('cons')) t='consumer'; else if(t.startsWith('prod')) t='producer'; else if(t!=='sdis'){ko++;return;} addPoint(lat,lng,t,name); ok++; }); statusEl.className=''; statusEl.innerHTML = `Import : ${ok} ajouté(s), ${ko} rejeté(s).`; };
+      document.getElementById('exportCsvBtn').onclick = ()=>{ if(!participants.length) return; const header='name;lat;lon;type'; const rows=participants.map(p=>[p.name?.replace(/;/g,','), p.lat.toFixed(6), p.lng.toFixed(6), p.type].join(';')); const csv=[header,...rows].join('\n'); const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='acc_points.csv'; a.click(); URL.revokeObjectURL(url); };
+
+      // Producteur par défaut (adresse projet)
+      const DEFAULT_ADDR='210 Les Espinasses, 38250 Villard-de-Lans, France';
+      const DEFAULT_FALLBACK={lat:45.073, lng:5.55};
+      async function initDefaultProducer(){ try{ const saved=localStorage.getItem('defaultProducer'); if(saved){ const obj=JSON.parse(saved); if(obj&&obj.lat&&obj.lng){ addPoint(obj.lat,obj.lng,'producer', obj.name||'Projet 1 – Producteur'); if(!document.getElementById('projName').value) document.getElementById('projName').value='Projet 1'; statusEl.textContent='Producteur par défaut chargé.'; return; } } }catch(_){ }
+        try{ let res=[]; try{ res=await geocodePhoton(DEFAULT_ADDR); }catch(_){ } if(!res.length){ try{ res=await geocodeNominatim(DEFAULT_ADDR); }catch(_){ } } if(res && res[0]){ addPoint(res[0].lat, res[0].lng, 'producer', 'Projet 1 – Producteur'); try{ localStorage.setItem('defaultProducer', JSON.stringify({lat:res[0].lat, lng:res[0].lng, name:'Projet 1 – Producteur'})); }catch(_){ } if(!document.getElementById('projName').value) document.getElementById('projName').value='Projet 1'; statusEl.textContent='Producteur par défaut géocodé.'; return; } }catch(_){ }
+        addPoint(DEFAULT_FALLBACK.lat, DEFAULT_FALLBACK.lng, 'producer', 'Projet 1 – Producteur (approx.)'); if(!document.getElementById('projName').value) document.getElementById('projName').value='Projet 1'; statusEl.textContent='Producteur par défaut (approx.) ajouté (géocodage indisponible).';
+      }
+      document.getElementById('resetDefaultBtn').addEventListener('click', ()=>{ try{ localStorage.removeItem('defaultProducer'); statusEl.className=''; statusEl.textContent='Producteur par défaut réinitialisé.'; }catch(_){ } });
+
+      // Lancer
+      try{ initDefaultProducer(); }catch(_){ }
+      layout();
+      statusEl.className=''; statusEl.textContent='Prêt.';
+
+      // Diagnostics visibles
+      window.addEventListener('error', e=>{ statusEl.className=''; statusEl.textContent='Erreur JS : '+e.message; });
+      window.addEventListener('unhandledrejection', e=>{ statusEl.className=''; statusEl.textContent='Erreur Promesse : '+(e.reason?.message||e.reason); });
+    }
+  </script>
+</body>
+</html>
