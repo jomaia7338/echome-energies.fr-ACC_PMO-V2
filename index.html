@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Echome Énergies — Outil Terrain ACC/PMO</title>
+  <title>Echome Énergies — Outil terrain ACC/PMO</title>
 
   <!-- Leaflet -->
   <link rel="stylesheet"
@@ -15,7 +15,10 @@
           crossorigin="anonymous"></script>
 
   <link rel="stylesheet" href="./styles.css">
+  <link rel="manifest" href="./manifest.webmanifest">
   <meta name="theme-color" content="#37C3AF">
+  <link rel="icon" href="./icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
 </head>
 <body>
   <header>
@@ -40,7 +43,33 @@
         <span class="pill" id="communePill">Commune: —</span>
       </div>
 
-      <div class="grid">
+      <!-- Identité dossier -->
+      <fieldset class="fs">
+        <legend>Dossier</legend>
+        <div class="row">
+          <div>
+            <label>Nom du dossier</label>
+            <input id="projectName" type="text" placeholder="Ex. Centrale - Zone Isère Nord">
+          </div>
+          <div class="align-end">
+            <button id="btnCopyLink" class="ghost">Copier le lien du dossier</button>
+          </div>
+        </div>
+      </fieldset>
+
+      <!-- Localisation -->
+      <fieldset class="fs">
+        <legend>Localisation centrale</legend>
+        <div class="row">
+          <div>
+            <label>Adresse (géocodage)</label>
+            <input id="addr" type="text" placeholder="Ex. 10 rue de la République, 38000 Grenoble">
+          </div>
+          <div class="align-end">
+            <button id="btnGeocode">Géocoder</button>
+          </div>
+        </div>
+
         <div class="row">
           <div>
             <label>Latitude centrale</label>
@@ -81,72 +110,74 @@
             <button id="btnChargerSIS" class="ghost">Charger POI SIS</button>
           </div>
         </div>
+      </fieldset>
 
-        <fieldset class="fs">
-          <legend>Recherche de consommateurs (Overpass)</legend>
-          <div class="tags">
-            <label><input type="checkbox" class="cat" value="education" checked> Éducation</label>
-            <label><input type="checkbox" class="cat" value="sante" checked> Santé</label>
-            <label><input type="checkbox" class="cat" value="adm" checked> Administrations</label>
-            <label><input type="checkbox" class="cat" value="sport"> Sport</label>
-            <label><input type="checkbox" class="cat" value="commerce"> Commerce</label>
-            <label><input type="checkbox" class="cat" value="industrie"> Industrie légère</label>
-            <label><input type="checkbox" class="cat" value="parking"> Parkings (ombrière)</label>
-          </div>
-          <div class="row">
-            <button id="btnScan">Scanner le rayon</button>
-            <span class="muted small">Le scan interroge OSM dans le rayon sélectionné.</span>
-          </div>
-        </fieldset>
+      <!-- Candidats PMO -->
+      <fieldset class="fs">
+        <legend>Recherche de consommateurs (Overpass)</legend>
+        <div class="tags">
+          <label><input type="checkbox" class="cat" value="education" checked> Éducation</label>
+          <label><input type="checkbox" class="cat" value="sante" checked> Santé</label>
+          <label><input type="checkbox" class="cat" value="adm" checked> Administrations</label>
+          <label><input type="checkbox" class="cat" value="sport"> Sport</label>
+          <label><input type="checkbox" class="cat" value="commerce"> Commerce</label>
+          <label><input type="checkbox" class="cat" value="industrie"> Industrie légère</label>
+          <label><input type="checkbox" class="cat" value="parking"> Parkings (ombrière)</label>
+        </div>
+        <div class="row">
+          <button id="btnScan">Scanner le rayon</button>
+          <span class="muted small">Le scan interroge OSM dans le rayon sélectionné.</span>
+        </div>
+      </fieldset>
 
-        <fieldset class="fs">
-          <legend>Participants PMO</legend>
-          <div class="row">
-            <div>
-              <label>Nom</label>
-              <input id="partNom" type="text" placeholder="Ex. Collège Jean Moulin">
-            </div>
-            <div>
-              <label>Lat / Lon</label>
-              <div class="row">
-                <input id="partLat" type="number" step="0.000001" placeholder="lat">
-                <input id="partLon" type="number" step="0.000001" placeholder="lon">
-              </div>
+      <!-- Participants -->
+      <fieldset class="fs">
+        <legend>Participants PMO</legend>
+        <div class="row">
+          <div>
+            <label>Nom</label>
+            <input id="partNom" type="text" placeholder="Ex. Collège Jean Moulin">
+          </div>
+          <div>
+            <label>Lat / Lon</label>
+            <div class="row">
+              <input id="partLat" type="number" step="0.000001" placeholder="lat">
+              <input id="partLon" type="number" step="0.000001" placeholder="lon">
             </div>
           </div>
-          <div class="row">
-            <div>
-              <label>Type</label>
-              <select id="partType">
-                <option value="consumer">Consommateur</option>
-                <option value="producer">Producteur</option>
-              </select>
-            </div>
-            <div class="align-end">
-              <button id="btnAddPart" class="primary">Ajouter participant</button>
-            </div>
+        </div>
+        <div class="row">
+          <div>
+            <label>Type</label>
+            <select id="partType">
+              <option value="consumer">Consommateur</option>
+              <option value="producer">Producteur</option>
+            </select>
           </div>
-
-          <div class="row">
-            <div>
-              <label>Importer participants (CSV ; Nom;Lat;Lon;consumer|producer)</label>
-              <input id="fileCsv" type="file" accept=".csv,text/csv">
-            </div>
-            <div class="align-end">
-              <button id="btnImportCsv">Importer</button>
-              <button id="btnExportCsv" class="ghost">Exporter</button>
-            </div>
+          <div class="align-end">
+            <button id="btnAddPart" class="primary">Ajouter participant</button>
           </div>
-
-          <div id="listParts" class="list"></div>
-        </fieldset>
+        </div>
 
         <div class="row">
-          <button id="btnSaveLocal" class="primary">Enregistrer projet (local)</button>
-          <div class="align-end">
-            <button id="btnLoadLocal">Charger</button>
-            <button id="btnDeleteLocal" class="danger">Supprimer</button>
+          <div>
+            <label>Importer participants (CSV ; Nom;Lat;Lon;consumer|producer)</label>
+            <input id="fileCsv" type="file" accept=".csv,text/csv">
           </div>
+          <div class="align-end">
+            <button id="btnImportCsv">Importer</button>
+            <button id="btnExportCsv" class="ghost">Exporter</button>
+          </div>
+        </div>
+
+        <div id="listParts" class="list"></div>
+      </fieldset>
+
+      <div class="row">
+        <button id="btnSaveLocal" class="primary">Enregistrer projet (local)</button>
+        <div class="align-end">
+          <button id="btnLoadLocal">Charger</button>
+          <button id="btnDeleteLocal" class="danger">Supprimer</button>
         </div>
       </div>
     </section>
@@ -157,5 +188,12 @@
   </main>
 
   <script src="./app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
 </body>
 </html>
