@@ -128,6 +128,12 @@
           <legend>Paramètres de périmètre</legend>
           <div class="row">
             <div>
+              <div class="seg seg-compact" id="zoneBtns" aria-label="Zone réglementaire">
+  <button class="seg-btn active" data-zone="STD" data-dmax="2">Standard 2 km</button>
+  <button class="seg-btn" data-zone="PERI" data-dmax="10">Périurbain 10 km</button>
+  <button class="seg-btn" data-zone="RURAL" data-dmax="20">Rural / SIS 20 km</button>
+  <button class="seg-btn badge" id="btnEPCI" data-zone="EPCI" data-badge="contexte">EPCI (contexte)</button>
+</div>
               <label>Distance maximale (diamètre légal, km)</label>
               <select id="distMaxPreset">
                 <option value="2">2 km (standard)</option>
