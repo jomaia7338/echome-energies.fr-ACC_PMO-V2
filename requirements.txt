@@ -1,5 +1,0 @@
-streamlit
-geopandas
-shapely
-pyproj
-pandas
