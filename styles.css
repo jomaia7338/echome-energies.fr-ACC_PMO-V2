@@ -88,3 +88,20 @@ button.danger:hover{background:#52152d}
 .seg-btn.active{border-color:#1b4f3a;background:#103024}
 .tab{display:none}
 .tab.active{display:block}
+/* Périmètre: pane dédié (halo visible) */
+.leaflet-pane.perimeter-pane { mix-blend-mode: normal; }
+
+/* Segments compacts + badge */
+.seg.seg-compact .seg-btn{padding:.35rem .4rem;font-size:12px}
+.seg-btn.badge{position:relative}
+.seg-btn.badge::after{
+  content: attr(data-badge);
+  position:absolute;top:-6px;right:-6px;background:#ff6b7a;color:#000;
+  border-radius:999px;padding:0 6px;font-size:10px;border:1px solid #000
+}
+
+/* Étiquette flottante sur la pire paire */
+.maxpair-label{
+  background:#0f1426; color:#e8eaf0; border:1px solid #20263d;
+  padding:.25rem .4rem; border-radius:8px; font-size:12px
+}
