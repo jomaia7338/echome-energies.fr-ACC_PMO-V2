@@ -8,9 +8,36 @@ body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-ap
 header{position:sticky;top:0;z-index:1000;background:var(--panel);border-bottom:1px solid var(--line);padding:.7rem .9rem;display:flex;gap:1rem;align-items:center}
 header h1{font-size:14px;margin:0}
 .muted{color:var(--muted)} .small{font-size:12px}
-main{display:grid;grid-template-columns:380px 1fr;gap:12px;padding:12px}
-@media (max-width:980px){main{grid-template-columns:1fr}}
+
+/* Layout: panneau scrollable + carte sticky */
+.layout{
+  display:grid;grid-template-columns:420px 1fr;gap:12px;padding:12px;
+}
+@media (max-width:1100px){ .layout{grid-template-columns:360px 1fr} }
+@media (max-width:920px){ .layout{grid-template-columns:1fr} }
+
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
+.side-scroll{max-height:calc(100vh - 80px);overflow:auto;scroll-behavior:smooth}
+.map-wrap{padding:0}
+.map-sticky{position:sticky;top:72px;padding:10px}
+@media (max-width:920px){
+  .map-sticky{top:64px}
+}
+
+/* Carte + FAB */
+#map{min-height:72vh;border-radius:12px;overflow:hidden}
+.fab{
+  display:none;position:absolute;right:22px;bottom:22px;cursor:pointer;
+  background:#0f1426;border:1px solid var(--line);border-radius:999px;
+  padding:.6rem .75rem;font-weight:700;box-shadow:0 6px 24px rgba(0,0,0,.35);
+}
+@media (max-width:920px){
+  .fab{display:block}
+  #side{display:none}
+  #side.open{display:block;position:fixed;inset:72px 8px 8px 8px;z-index:1001;max-height:unset;overflow:auto}
+}
+
+/* UI générale */
 .grid{display:grid;gap:.75rem}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 label{font-size:12px;color:var(--muted);display:block;margin-bottom:.25rem}
@@ -22,10 +49,12 @@ button.ghost{background:transparent}
 button.danger{background:#3a1020;border-color:#5b1830}
 button.danger:hover{background:#52152d}
 .align-end{display:flex;gap:.5rem;align-items:end;justify-content:flex-end}
-#map{min-height:72vh;border-radius:12px;overflow:hidden}
 .hidden{display:none}
 #error-box{border:1px solid #5b2431;background:#2a0e17;color:#ffd7df;border-radius:10px;padding:.6rem .75rem;white-space:pre-wrap;margin-bottom:.5rem}
-.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.25rem}
+
+/* KPI + légende */
+.kpis{display:grid;gap:.5rem;margin-bottom:.25rem}
+.kpis-4{grid-template-columns:repeat(4,1fr)}
 .kpi{background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.6rem}
 .kpi .lbl{font-size:12px;color:var(--muted)}
 .kpi b{display:block;margin-top:.2rem;font-size:18px}
@@ -36,9 +65,29 @@ button.danger:hover{background:#52152d}
 .dot.prod{background:#f5b841}
 .dot.cons{background:#4ea2ff}
 .dot.cand{background:#ff6b7a}
+
+/* Fieldsets + listes */
 .fs{border:1px dashed var(--line);border-radius:10px;padding:.6rem}
 .fs legend{padding:0 .4rem;color:var(--muted)}
 .tags{display:flex;flex-wrap:wrap;gap:.75rem}
 .list{display:grid;gap:.35rem;margin-top:.4rem}
 .part{display:flex;justify-content:space-between;align-items:center;gap:.5rem;background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.4rem .55rem}
 .part .meta{font-size:12px;color:var(--muted)}
+
+/* icône producteur (divIcon) */
+.prod-icon{transform: translate(-12px,-24px);}
+.prod-icon .pin{
+  width:20px;height:20px;border-radius:50%;
+  background:#f5b841;border:2px solid #b58900; box-shadow:0 0 0 2px rgba(0,0,0,.25);
+}
+
+/* radios + onglets */
+.radio{display:flex;gap:1rem;align-items:center}
+.seg{display:flex;gap:6px;margin:.4rem 0 .6rem}
+.seg-btn{
+  flex:1;cursor:pointer;background:#0f1426;border:1px solid var(--line);border-radius:10px;
+  padding:.4rem .6rem;text-align:center
+}
+.seg-btn.active{border-color:#1b4f3a;background:#103024}
+.tab{display:none}
+.tab.active{display:block}
