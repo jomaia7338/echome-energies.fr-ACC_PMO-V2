@@ -78,11 +78,11 @@ const app = {
   // Producteur & centre visuel
   producteur: null,            // {lat, lon}
   centreMode:'producer',       // 'producer' | 'free'
-  placingProducer:false,
+  placingProducer:false,       // mode explicite "Placer au clic"
   centreLibre:{ lat:45.191, lon:5.684 },
 
   // Périmètre & zone
-  distMaxKm:2,                 // diamètre légal
+  distMaxKm:2,                 // diamètre légal (2/10/20)
   distExplorKm:2,              // rayon visuel de prospection
   zoneRegl: 'STD',             // STD | PERI | RURAL | EPCI
   reseau:'BT',
@@ -105,34 +105,36 @@ function setupMap(){
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OSM' }).addTo(app.map);
 
   // Confort d’usage
-  app.map.scrollWheelZoom.disable();      // empêche les zooms involontaires à la molette
+  app.map.scrollWheelZoom.disable();      // évite zoom molette accidentel en scrollant le panneau
   app.map.touchZoom.enable();
   app.map.doubleClickZoom.enable();
+
+  // Échelle cartographique (en haut à gauche)
+  L.control.scale({ imperial:false, position:'topleft' }).addTo(app.map);
 
   // Pane dédié au périmètre (meilleure lisibilité)
   app.map.createPane('perimeter');
   app.map.getPane('perimeter').classList.add('perimeter-pane');
 
-  // Point libre
+  // Point libre (déplaçable UNIQUEMENT au drag — pas au clic)
   app.layers.freeMarker = L.marker([app.centreLibre.lat, app.centreLibre.lon], { draggable:true, title:'Point libre' }).addTo(app.map);
   app.layers.freeMarker.on('dragend', ()=>{
     const { lat, lng } = app.layers.freeMarker.getLatLng();
     app.centreLibre = { lat, lon: lng };
-    $('lat').value = lat.toFixed(6); $('lon').value = lng.toFixed(6);
+    $('lat') && ($('lat').value = lat.toFixed(6));
+    $('lon') && ($('lon').value = lng.toFixed(6));
     redrawCircle(); refreshAll(); saveProject();
   });
 
-  // Click carte: place producteur si mode actif, sinon déplace le point libre
+  // CLIC CARTE : NE FAIT RIEN, SAUF EN MODE "PLACER PRODUCTEUR"
   app.map.on('click', (e)=>{
     if (app.placingProducer){
       setProducteur({ lat:e.latlng.lat, lon:e.latlng.lng });
-      app.placingProducer = false; const b=$('btnPlaceProducer'); if(b) b.classList.remove('primary');
-      return;
+      app.placingProducer = false;
+      const b=$('btnPlaceProducer'); if(b) b.classList.remove('primary');
+      setStatus('Producteur défini au clic');
+      // Sinon: laisser Leaflet gérer le clic (popups, drag, etc.)
     }
-    app.centreLibre = { lat:e.latlng.lat, lon:e.latlng.lng };
-    app.layers.freeMarker.setLatLng([app.centreLibre.lat, app.centreLibre.lon]);
-    $('lat').value = app.centreLibre.lat.toFixed(6); $('lon').value = app.centreLibre.lon.toFixed(6);
-    redrawCircle(); refreshAll(); saveProject();
   });
 
   app.layers.cand.addTo(app.map);
@@ -143,14 +145,17 @@ function setupMap(){
 }
 function setProducteur({lat, lon}){
   app.producteur = { lat, lon };
-  $('prodLat').value = lat.toFixed(6); $('prodLon').value = lon.toFixed(6);
+  $('prodLat') && ($('prodLat').value = lat.toFixed(6));
+  $('prodLon') && ($('prodLon').value = lon.toFixed(6));
   if(!app.layers.producerMarker){
     app.layers.producerMarker = L.marker([lat,lon], { draggable:true, title:'Producteur', icon: prodIcon }).addTo(app.map);
     app.layers.producerMarker.on('dragend', ()=>{
       const { lat, lng } = app.layers.producerMarker.getLatLng();
       app.producteur = { lat, lon: lng };
-      $('prodLat').value = lat.toFixed(6); $('prodLon').value = lon.toFixed(6);
+      $('prodLat') && ($('prodLat').value = lat.toFixed(6));
+      $('prodLon') && ($('prodLon').value = lon.toFixed(6));
       redrawCircle(); refreshAll(); saveProject();
+      setStatus('Producteur déplacé');
     });
   } else {
     app.layers.producerMarker.setLatLng([lat,lon]).addTo(app.map);
@@ -192,7 +197,7 @@ function drawParticipants(){
       .bindPopup(`<b>${p.nom}</b><br>${p.type}<br>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`)
       .addTo(app.layers.part);
   });
-  $('kpiPart').textContent = app.participants.length;
+  $('kpiPart') && ($('kpiPart').textContent = app.participants.length);
   checkLegalPerimeter();
 }
 function addParticipant(p){ app.participants.push(p); drawParticipants(); renderParticipantsList(); saveProject(); }
@@ -232,7 +237,7 @@ function checkLegalPerimeter(){
     }
   }
 
-  // Surbrillance de la pire paire
+  // Surbrillance de la pire paire (utile pour vérifier l’adéquation au diamètre choisi)
   if(worst.a && worst.b){
     app.layers.maxPairLine = L.polyline(
       [[worst.a.lat,worst.a.lon],[worst.b.lat,worst.b.lon]],
@@ -244,12 +249,12 @@ function checkLegalPerimeter(){
     }).addTo(app.map);
   }
 
-  $('kpiLegal').textContent = pts.length<2 ? '—' : (ok ? 'Conforme ✔︎' : 'Non conforme ✖︎');
+  $('kpiLegal') && ($('kpiLegal').textContent = pts.length<2 ? '—' : (ok ? 'Conforme ✔︎' : 'Non conforme ✖︎'));
 
-  // KPI "dans le rayon visuel"
+  // KPI "dans le rayon visuel" (outil de prospection uniquement)
   const c = getCentreRayon(); const rKm = (Number($('distExplor')?.value) || app.distExplorKm);
   const inScan = app.participants.filter(p => (haversineMeters(c,{lat:p.lat,lon:p.lon})/1000) <= rKm).length;
-  $('kpiRayon').textContent = inScan;
+  $('kpiRayon') && ($('kpiRayon').textContent = inScan);
 }
 
 // ========= Prospection / SIS =========
@@ -290,7 +295,8 @@ async function scanCandidats(){
         .addTo(app.layers.cand);
     });
   }
-  $('kpiCand').textContent = app.candidats.length; setStatus('Prêt');
+  $('kpiCand') && ($('kpiCand').textContent = app.candidats.length);
+  setStatus('Prêt');
 }
 function overpassSISQuery({ lat, lon, distKm }){
   const r = Math.max(1, Math.round(distKm*1000));
@@ -315,7 +321,7 @@ async function loadSIS(){
 
 // ========= Storage =========
 function getCurrentProjectPayload(){
-  return { __v:5, savedAt:new Date().toISOString(), state:{
+  return { __v:6, savedAt:new Date().toISOString(), state:{
     projectName: app.projectName, addrLabel: app.addrLabel, producteur: app.producteur,
     centreMode: app.centreMode, centreLibre: app.centreLibre,
     distMaxKm: app.distMaxKm, distExplorKm: app.distExplorKm, zoneRegl: app.zoneRegl, reseau: app.reseau,
@@ -343,20 +349,22 @@ function applyProjectPayload(payload){
   app.reseau = s.reseau || app.reseau; app.participants = Array.isArray(s.participants) ? s.participants : [];
 
   // UI fields
-  $('projectName').value = app.projectName; $('addr').value = app.addrLabel;
+  $('projectName') && ($('projectName').value = app.projectName);
+  $('addr') && ($('addr').value = app.addrLabel);
   if(app.producteur){ setProducteur(app.producteur); } else { clearProducteur(); }
-  $('prodLat').value = app.producteur ? app.producteur.lat.toFixed(6) : '';
-  $('prodLon').value = app.producteur ? app.producteur.lon.toFixed(6) : '';
+  $('prodLat') && ($('prodLat').value = app.producteur ? app.producteur.lat.toFixed(6) : '');
+  $('prodLon') && ($('prodLon').value = app.producteur ? app.producteur.lon.toFixed(6) : '');
 
-  $('distMaxPreset').value = [2,10,20].includes(Number(app.distMaxKm)) ? String(app.distMaxKm) : 'perso';
-  if($('distMaxPreset').value==='perso') $('distMaxPerso').value = app.distMaxKm; else $('distMaxPerso').value = '';
-  $('distExplor').value = app.distExplorKm;
+  $('distMaxPreset') && ($('distMaxPreset').value = [2,10,20].includes(Number(app.distMaxKm)) ? String(app.distMaxKm) : 'perso');
+  if($('distMaxPreset') && $('distMaxPreset').value==='perso') $('distMaxPerso').value = app.distMaxKm; else if($('distMaxPerso')) $('distMaxPerso').value = '';
+  $('distExplor') && ($('distExplor').value = app.distExplorKm);
 
-  $('lat').value = app.centreLibre.lat.toFixed(6); $('lon').value = app.centreLibre.lon.toFixed(6);
+  $('lat') && ($('lat').value = app.centreLibre.lat.toFixed(6));
+  $('lon') && ($('lon').value = app.centreLibre.lon.toFixed(6));
   document.querySelectorAll('input[name="centreMode"]').forEach(r=> r.checked = (r.value === app.centreMode));
   if(app.layers.freeMarker) app.layers.freeMarker.setLatLng([app.centreLibre.lat, app.centreLibre.lon]);
 
-  // Zone buttons state
+  // Zone buttons state (si présents dans le DOM)
   document.querySelectorAll('#zoneBtns .seg-btn').forEach(b=>{
     b.classList.toggle('active', b.getAttribute('data-zone') === app.zoneRegl);
   });
@@ -406,38 +414,32 @@ function wireUI(){
   }
 
   // Dossier
-  const projectNameEl = $('projectName');
-  if(projectNameEl) projectNameEl.addEventListener('input', (e)=>{ app.projectName = e.target.value; saveProject(); });
-  const btnCopy = $('btnCopyLink');
-  if(btnCopy) btnCopy.onclick = ()=>{
+  $('projectName')?.addEventListener('input', (e)=>{ app.projectName = e.target.value; saveProject(); });
+  $('btnCopyLink')?.addEventListener('click', ()=>{
     if(!app.projectId) saveProject(); const url = new URL(location.href);
     url.searchParams.set('project', app.projectId); copyToClipboard(url.toString());
-  };
+  });
 
   // Producteur
-  const btnGeocode = $('btnGeocode');
-  if(btnGeocode) btnGeocode.onclick = async ()=>{
-    const q = $('addr').value?.trim(); if(!q) return showError('Saisir une adresse');
+  $('btnGeocode')?.addEventListener('click', async ()=>{
+    const q = $('addr')?.value?.trim(); if(!q) return showError('Saisir une adresse');
     setStatus('Géocodage…'); const r = await geocodeAdresse(q); if(!r) return setStatus('Géocodage impossible');
     app.addrLabel = r.label; setProducteur({ lat:r.lat, lon:r.lon }); app.map.setView([r.lat, r.lon], 14); setStatus('Adresse localisée');
-  };
-  const btnSetFromInputs = $('btnSetProducerFromInputs');
-  if(btnSetFromInputs) btnSetFromInputs.onclick = ()=>{
-    const la = Number($('prodLat').value), lo = Number($('prodLon').value);
+  });
+  $('btnSetProducerFromInputs')?.addEventListener('click', ()=>{
+    const la = Number($('prodLat')?.value), lo = Number($('prodLon')?.value);
     if(!Number.isFinite(la)||!Number.isFinite(lo)) return showError('Coordonnées producteur invalides');
     setProducteur({ lat:la, lon:lo }); app.map.setView([la, lo], 14);
-  };
-  const btnPlaceProducer = $('btnPlaceProducer');
-  if(btnPlaceProducer) btnPlaceProducer.onclick = ()=>{
-    app.placingProducer = !app.placingProducer; btnPlaceProducer.classList.toggle('primary', app.placingProducer);
+  });
+  $('btnPlaceProducer')?.addEventListener('click', ()=>{
+    app.placingProducer = !app.placingProducer;
+    $('btnPlaceProducer').classList.toggle('primary', app.placingProducer);
     setStatus(app.placingProducer ? 'Clique sur la carte pour fixer le producteur' : 'Mode placement désactivé');
-  };
-  const btnClearProducer = $('btnClearProducer');
-  if(btnClearProducer) btnClearProducer.onclick = clearProducteur;
+  });
+  $('btnClearProducer')?.addEventListener('click', clearProducteur);
 
   // Géolocalisation (HTML5)
-  const btnLocate = $('btnLocate');
-  if(btnLocate) btnLocate.onclick = ()=>{
+  $('btnLocate')?.addEventListener('click', ()=>{
     if(!navigator.geolocation) return showError('Géolocalisation non supportée');
     setStatus('Géolocalisation en cours…');
     navigator.geolocation.getCurrentPosition(pos=>{
@@ -446,59 +448,66 @@ function wireUI(){
       if(!app.producteur){
         setProducteur({ lat:latitude, lon:longitude });
       }else{
-        app.centreLibre = { lat:latitude, lon:longitude };
-        app.layers.freeMarker.setLatLng([latitude, longitude]);
-        $('lat').value = latitude.toFixed(6); $('lon').value = longitude.toFixed(6);
-        redrawCircle(); refreshAll(); saveProject();
+        // Si un producteur existe déjà, on ne bouge rien : on recadre simplement.
+        setStatus('Position GPS acquise');
       }
-      setStatus('Position GPS acquise');
     }, err=>{
       showError(`GPS KO: ${err.message||'inconnu'}`); setStatus('Géolocalisation indisponible');
     }, { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
-  };
+  });
 
-  // Centre visuel
+  // Centre visuel (point libre) — uniquement via drag du marqueur ou inputs
   document.querySelectorAll('input[name="centreMode"]').forEach(r=>{
     r.addEventListener('change', (e)=>{ app.centreMode = e.target.value; redrawCircle(); checkLegalPerimeter(); saveProject(); });
   });
-  const latEl = $('lat'), lonEl = $('lon');
-  if(latEl) latEl.addEventListener('change', e=>{ const v=Number(e.target.value); if(Number.isFinite(v)){ app.centreLibre.lat=v; app.layers.freeMarker.setLatLng([app.centreLibre.lat, app.centreLibre.lon]); redrawCircle(); checkLegalPerimeter(); saveProject(); }});
-  if(lonEl) lonEl.addEventListener('change', e=>{ const v=Number(e.target.value); if(Number.isFinite(v)){ app.centreLibre.lon=v; app.layers.freeMarker.setLatLng([app.centreLibre.lat, app.centreLibre.lon]); redrawCircle(); checkLegalPerimeter(); saveProject(); }});
+  $('lat')?.addEventListener('change', e=>{
+    const v=Number(e.target.value); if(Number.isFinite(v)){
+      app.centreLibre.lat=v; app.layers.freeMarker.setLatLng([app.centreLibre.lat, app.centreLibre.lon]);
+      redrawCircle(); checkLegalPerimeter(); saveProject();
+    }
+  });
+  $('lon')?.addEventListener('change', e=>{
+    const v=Number(e.target.value); if(Number.isFinite(v)){
+      app.centreLibre.lon=v; app.layers.freeMarker.setLatLng([app.centreLibre.lat, app.centreLibre.lon]);
+      redrawCircle(); checkLegalPerimeter(); saveProject();
+    }
+  });
 
   // Diamètre légal & rayon visuel
   const applyDistMax = ()=>{
-    const pv = $('distMaxPreset').value;
+    const pv = $('distMaxPreset')?.value;
     if(pv==='perso'){
-      const d = Number($('distMaxPerso').value); if(Number.isFinite(d)&&d>0) app.distMaxKm = d;
-    } else { app.distMaxKm = Number(pv); $('distMaxPerso').value = ''; }
-    const curExpl = Number($('distExplor').value);
-    if(!Number.isFinite(curExpl) || curExpl<=0) { app.distExplorKm = app.distMaxKm; $('distExplor').value = app.distExplorKm; }
+      const d = Number($('distMaxPerso')?.value); if(Number.isFinite(d)&&d>0) app.distMaxKm = d;
+    } else if (pv) { app.distMaxKm = Number(pv); $('distMaxPerso') && ( $('distMaxPerso').value = '' ); }
+    const curExpl = Number($('distExplor')?.value);
+    if(!Number.isFinite(curExpl) || curExpl<=0) { app.distExplorKm = app.distMaxKm; $('distExplor') && ( $('distExplor').value = app.distExplorKm ); }
     redrawCircle(); checkLegalPerimeter(); saveProject();
   };
-  const distMaxPreset = $('distMaxPreset'), distMaxPerso = $('distMaxPerso'), distExplor = $('distExplor');
-  if(distMaxPreset) distMaxPreset.addEventListener('change', applyDistMax);
-  if(distMaxPerso) distMaxPerso.addEventListener('change', applyDistMax);
-  if(distExplor) distExplor.addEventListener('change', (e)=>{ const v=Number(e.target.value); if(Number.isFinite(v)&&v>0){ app.distExplorKm=v; redrawCircle(); checkLegalPerimeter(); saveProject(); }});
+  $('distMaxPreset')?.addEventListener('change', applyDistMax);
+  $('distMaxPerso')?.addEventListener('change', applyDistMax);
+  $('distExplor')?.addEventListener('change', (e)=>{
+    const v=Number(e.target.value); if(Number.isFinite(v)&&v>0){ app.distExplorKm=v; redrawCircle(); checkLegalPerimeter(); saveProject(); }
+  });
 
-  const reseauSel = $('reseau'); if(reseauSel) reseauSel.addEventListener('change', e=>{ app.reseau = e.target.value; saveProject(); });
+  $('reseau')?.addEventListener('change', e=>{ app.reseau = e.target.value; saveProject(); });
 
   // Actions carte
-  const btnRecentre = $('btnRecentrer'); if(btnRecentre) btnRecentre.onclick = ()=>{ const c = getCentreRayon(); app.map.setView([c.lat, c.lon], 13); };
-  const btnScan = $('btnScan'); if(btnScan) btnScan.onclick = scanCandidats;
-  const btnSIS = $('btnChargerSIS'); if(btnSIS) btnSIS.onclick = loadSIS;
+  $('btnRecentrer')?.addEventListener('click', ()=>{
+    const c = getCentreRayon(); app.map.setView([c.lat, c.lon], 13);
+  });
+  $('btnScan')?.addEventListener('click', scanCandidats);
+  $('btnChargerSIS')?.addEventListener('click', loadSIS);
 
   // Participants
-  const btnAddPart = $('btnAddPart');
-  if(btnAddPart) btnAddPart.onclick = ()=>{
-    const nom=$('partNom').value?.trim(); const lat=Number($('partLat').value), lon=Number($('partLon').value);
-    const type=$('partType').value;
+  $('btnAddPart')?.addEventListener('click', ()=>{
+    const nom=$('partNom')?.value?.trim(); const lat=Number($('partLat')?.value), lon=Number($('partLon')?.value);
+    const type=$('partType')?.value;
     if(!nom || !Number.isFinite(lat) || !Number.isFinite(lon)) return showError('Participant: champs incomplets');
     addParticipant({ id:crypto.randomUUID(), nom, lat, lon, type });
     $('partNom').value=''; $('partLat').value=''; $('partLon').value='';
-  };
-  const btnImportCsv = $('btnImportCsv');
-  if(btnImportCsv) btnImportCsv.onclick = async ()=>{
-    const f = $('fileCsv').files?.[0]; if(!f) return showError('Aucun fichier CSV sélectionné');
+  });
+  $('btnImportCsv')?.addEventListener('click', async ()=>{
+    const f = $('fileCsv')?.files?.[0]; if(!f) return showError('Aucun fichier CSV sélectionné');
     const text = await f.text();
     const rows = text.trim().split(/\r?\n/), out=[]; const startIdx = rows[0]?.toLowerCase().includes('nom;') ? 1 : 0;
     for(let i=startIdx;i<rows.length;i++){
@@ -508,25 +517,16 @@ function wireUI(){
       if(nom && Number.isFinite(la) && Number.isFinite(lo) && ['consumer','producer'].includes(type)) out.push({ id:crypto.randomUUID(), nom, lat:la, lon:lo, type });
     }
     out.forEach(addParticipant);
-  };
-  const btnExportCsv = $('btnExportCsv');
-  if(btnExportCsv) btnExportCsv.onclick = ()=>{
+  });
+  $('btnExportCsv')?.addEventListener('click', ()=>{
     const rows = [['Nom','Lat','Lon','Type'], ...app.participants.map(p=>[p.nom,p.lat,p.lon,p.type])];
     const csv = rows.map(r=>r.join(';')).join('\n');
     const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = `participants_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`; a.click(); URL.revokeObjectURL(a.href);
-  };
+  });
 
-  // Storage
-  const btnSave = $('btnSaveLocal'); if(btnSave) btnSave.onclick = ()=> saveProject(true);
-  const btnLoad = $('btnLoadLocal'); if(btnLoad) btnLoad.onclick = ()=>{
-    const id = app.projectId || localStorage.getItem(STORAGE_LAST); if(!id) return showError('Aucun projet à charger');
-    const payload = loadProjectById(id); if(!payload) return showError('Projet introuvable'); applyProjectPayload(payload);
-  };
-  const btnDel = $('btnDeleteLocal'); if(btnDel) btnDel.onclick = ()=> deleteProject();
-
-  // Presets de zone (STD / PERI / RURAL / EPCI)
+  // Presets de zone (si présents dans le DOM)
   document.querySelectorAll('#zoneBtns .seg-btn').forEach(btn=>{
     btn.addEventListener('click', ()=>{
       document.querySelectorAll('#zoneBtns .seg-btn').forEach(b=>b.classList.remove('active'));
@@ -536,40 +536,40 @@ function wireUI(){
       const dmax = Number(btn.getAttribute('data-dmax'));
       if(Number.isFinite(dmax)){
         app.distMaxKm = dmax;
-        const curExpl = Number($('distExplor').value);
+        const curExpl = Number($('distExplor')?.value);
         if(!Number.isFinite(curExpl) || curExpl<=0){
-          app.distExplorKm = app.distMaxKm; $('distExplor').value = app.distExplorKm;
+          app.distExplorKm = app.distMaxKm; $('distExplor') && ( $('distExplor').value = app.distExplorKm );
         }
-        $('distMaxPreset').value = [2,10,20].includes(app.distMaxKm) ? String(app.distMaxKm) : 'perso';
-        $('distMaxPerso').value = ($('distMaxPreset').value==='perso') ? app.distMaxKm : '';
+        $('distMaxPreset') && ( $('distMaxPreset').value = [2,10,20].includes(app.distMaxKm) ? String(app.distMaxKm) : 'perso' );
+        if($('distMaxPreset')?.value==='perso' && $('distMaxPerso')) $('distMaxPerso').value = app.distMaxKm; else if($('distMaxPerso')) $('distMaxPerso').value='';
       }
       redrawCircle(); checkLegalPerimeter(); saveProject();
     });
   });
 
-  // Toggle rapide 20 km (usage autorisé) avec “undo”
+  // Toggle rapide 20 km (si présent)
   let prevDistBeforeBoost = null;
-  const btnBoost20 = $('btnBoost20');
-  if(btnBoost20) btnBoost20.onclick = ()=>{
+  $('btnBoost20')?.addEventListener('click', ()=>{
     if(app.distMaxKm !== 20){
       prevDistBeforeBoost = app.distMaxKm;
       app.distMaxKm = 20;
-      $('distMaxPreset').value = '20'; $('distMaxPerso').value='';
+      $('distMaxPreset') && ( $('distMaxPreset').value = '20' );
+      $('distMaxPerso') && ( $('distMaxPerso').value='' );
     } else {
       app.distMaxKm = prevDistBeforeBoost ?? 2;
-      $('distMaxPreset').value = [2,10,20].includes(app.distMaxKm) ? String(app.distMaxKm) : 'perso';
-      $('distMaxPerso').value = ($('distMaxPreset').value==='perso') ? app.distMaxKm : '';
+      $('distMaxPreset') && ( $('distMaxPreset').value = [2,10,20].includes(app.distMaxKm) ? String(app.distMaxKm) : 'perso' );
+      if($('distMaxPreset')?.value==='perso' && $('distMaxPerso')) $('distMaxPerso').value = app.distMaxKm; else if($('distMaxPerso')) $('distMaxPerso').value='';
     }
-    const curExpl = Number($('distExplor').value);
+    const curExpl = Number($('distExplor')?.value);
     if(!Number.isFinite(curExpl) || curExpl<=0){
-      app.distExplorKm = app.distMaxKm; $('distExplor').value = app.distExplorKm;
+      app.distExplorKm = app.distMaxKm; $('distExplor') && ( $('distExplor').value = app.distExplorKm );
     }
     redrawCircle(); checkLegalPerimeter(); saveProject();
-  };
+  });
 }
 
 // ========= Refresh =========
-function refreshCommune(){ const c=getCentreRayon(); getCommuneParCoord(c.lat,c.lon).then(x=>{ if(x) $('communePill').textContent = `Commune: ${x.nom}${x.epci?.nom ? ' — EPCI: '+x.epci.nom : ''}`; }); }
+function refreshCommune(){ const c=getCentreRayon(); getCommuneParCoord(c.lat,c.lon).then(x=>{ if(x) $('communePill') && ( $('communePill').textContent = `Commune: ${x.nom}${x.epci?.nom ? ' — EPCI: '+x.epci.nom : ''}` ); }); }
 function refreshAll(){ refreshCommune(); checkLegalPerimeter(); }
 
 // ========= Bootstrap =========
