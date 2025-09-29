@@ -26,164 +26,232 @@
     <div id="status" class="muted">Initialisation…</div>
   </header>
 
-  <main>
-    <section class="panel">
+  <main class="layout">
+    <!-- Panneau options (scrollable) -->
+    <aside id="side" class="panel side-scroll">
       <div id="error-box" class="hidden"></div>
 
-      <div class="kpis">
+      <div class="kpis kpis-4">
         <div class="kpi"><span class="lbl">Candidats détectés</span><b id="kpiCand">0</b></div>
         <div class="kpi"><span class="lbl">Participants</span><b id="kpiPart">0</b></div>
         <div class="kpi"><span class="lbl">Dans le rayon</span><b id="kpiRayon">0</b></div>
+        <div class="kpi"><span class="lbl">Conformité périmètre</span><b id="kpiLegal">—</b></div>
       </div>
 
       <div class="legend">
-        <span class="chip"><span class="dot prod"></span> Centrale</span>
+        <span class="chip"><span class="dot prod"></span> Producteur</span>
         <span class="chip"><span class="dot cons"></span> Participant</span>
         <span class="chip"><span class="dot cand"></span> Candidat (Overpass)</span>
         <span class="pill" id="communePill">Commune: —</span>
       </div>
 
-      <!-- Identité dossier -->
-      <fieldset class="fs">
-        <legend>Dossier</legend>
-        <div class="row">
-          <div>
-            <label>Nom du dossier</label>
-            <input id="projectName" type="text" placeholder="Ex. Centrale - Zone Isère Nord">
-          </div>
-          <div class="align-end">
-            <button id="btnCopyLink" class="ghost">Copier le lien du dossier</button>
-          </div>
-        </div>
-      </fieldset>
+      <!-- Segmented tabs -->
+      <div class="seg">
+        <button class="seg-btn active" data-tab="tab-dossier">Dossier</button>
+        <button class="seg-btn" data-tab="tab-producteur">Producteur</button>
+        <button class="seg-btn" data-tab="tab-perimetre">Périmètre</button>
+        <button class="seg-btn" data-tab="tab-prosp">Prospection</button>
+        <button class="seg-btn" data-tab="tab-part">Participants</button>
+      </div>
 
-      <!-- Localisation -->
-      <fieldset class="fs">
-        <legend>Localisation centrale</legend>
-        <div class="row">
-          <div>
-            <label>Adresse (géocodage)</label>
-            <input id="addr" type="text" placeholder="Ex. 10 rue de la République, 38000 Grenoble">
-          </div>
-          <div class="align-end">
-            <button id="btnGeocode">Géocoder</button>
-          </div>
-        </div>
-
-        <div class="row">
-          <div>
-            <label>Latitude centrale</label>
-            <input id="lat" type="number" step="0.000001" placeholder="45.191000">
-          </div>
-          <div>
-            <label>Longitude centrale</label>
-            <input id="lon" type="number" step="0.000001" placeholder="5.684000">
-          </div>
-        </div>
-
-        <div class="row">
-          <div>
-            <label>Rayon ACC</label>
-            <select id="rayonPreset">
-              <option value="2">2 km (standard)</option>
-              <option value="10">10 km (rural)</option>
-              <option value="20">20 km (rural étendu)</option>
-              <option value="perso">Perso…</option>
-            </select>
-          </div>
-          <div>
-            <label>Rayon perso (km)</label>
-            <input id="rayonPerso" type="number" min="0.1" step="0.1" placeholder="Ex. 7.5">
-          </div>
-        </div>
-
-        <div class="row">
-          <div>
-            <label>Réseau</label>
-            <select id="reseau">
-              <option value="BT" selected>BT</option>
-              <option value="HTA">HTA</option>
-            </select>
-          </div>
-          <div class="align-end">
-            <button id="btnRecentrer">Recentrer carte</button>
-            <button id="btnChargerSIS" class="ghost">Charger POI SIS</button>
-          </div>
-        </div>
-      </fieldset>
-
-      <!-- Candidats PMO -->
-      <fieldset class="fs">
-        <legend>Recherche de consommateurs (Overpass)</legend>
-        <div class="tags">
-          <label><input type="checkbox" class="cat" value="education" checked> Éducation</label>
-          <label><input type="checkbox" class="cat" value="sante" checked> Santé</label>
-          <label><input type="checkbox" class="cat" value="adm" checked> Administrations</label>
-          <label><input type="checkbox" class="cat" value="sport"> Sport</label>
-          <label><input type="checkbox" class="cat" value="commerce"> Commerce</label>
-          <label><input type="checkbox" class="cat" value="industrie"> Industrie légère</label>
-          <label><input type="checkbox" class="cat" value="parking"> Parkings (ombrière)</label>
-        </div>
-        <div class="row">
-          <button id="btnScan">Scanner le rayon</button>
-          <span class="muted small">Le scan interroge OSM dans le rayon sélectionné.</span>
-        </div>
-      </fieldset>
-
-      <!-- Participants -->
-      <fieldset class="fs">
-        <legend>Participants PMO</legend>
-        <div class="row">
-          <div>
-            <label>Nom</label>
-            <input id="partNom" type="text" placeholder="Ex. Collège Jean Moulin">
-          </div>
-          <div>
-            <label>Lat / Lon</label>
-            <div class="row">
-              <input id="partLat" type="number" step="0.000001" placeholder="lat">
-              <input id="partLon" type="number" step="0.000001" placeholder="lon">
+      <!-- Tab: Dossier -->
+      <section id="tab-dossier" class="tab active">
+        <fieldset class="fs">
+          <legend>Dossier</legend>
+          <div class="row">
+            <div>
+              <label>Nom du dossier</label>
+              <input id="projectName" type="text" placeholder="Ex. Centrale - Zone Isère Nord">
+            </div>
+            <div class="align-end">
+              <button id="btnCopyLink" class="ghost">Copier le lien du dossier</button>
             </div>
           </div>
-        </div>
-        <div class="row">
-          <div>
-            <label>Type</label>
-            <select id="partType">
-              <option value="consumer">Consommateur</option>
-              <option value="producer">Producteur</option>
-            </select>
+        </fieldset>
+      </section>
+
+      <!-- Tab: Producteur -->
+      <section id="tab-producteur" class="tab">
+        <fieldset class="fs">
+          <legend>Producteur (position de la centrale)</legend>
+
+          <div class="row">
+            <div>
+              <label>Adresse (géocodage BAN)</label>
+              <input id="addr" type="text" placeholder="Ex. 10 rue de la République, 38000 Grenoble">
+            </div>
+            <div class="align-end">
+              <button id="btnGeocode">Géocoder</button>
+            </div>
           </div>
-          <div class="align-end">
-            <button id="btnAddPart" class="primary">Ajouter participant</button>
+
+          <div class="row">
+            <div>
+              <label>Latitude producteur</label>
+              <input id="prodLat" type="number" step="0.000001" placeholder="45.191000">
+            </div>
+            <div>
+              <label>Longitude producteur</label>
+              <input id="prodLon" type="number" step="0.000001" placeholder="5.684000">
+            </div>
           </div>
-        </div>
+
+          <div class="row">
+            <div class="align-end">
+              <button id="btnSetProducerFromInputs" class="primary">Définir producteur (coord.)</button>
+            </div>
+            <div class="align-end">
+              <button id="btnPlaceProducer" class="ghost">Placer au clic</button>
+              <button id="btnClearProducer" class="danger">Supprimer</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Centre du cercle de prospection</label>
+              <div class="radio">
+                <label><input type="radio" name="centreMode" value="producer" checked> Producteur</label>
+                <label><input type="radio" name="centreMode" value="free"> Point libre</label>
+              </div>
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <button id="btnLocate" class="ghost">📍 Me localiser</button>
+            </div>
+          </div>
+        </fieldset>
+      </section>
+
+      <!-- Tab: Périmètre -->
+      <section id="tab-perimetre" class="tab">
+        <fieldset class="fs">
+          <legend>Paramètres de périmètre</legend>
+          <div class="row">
+            <div>
+              <label>Distance maximale (diamètre légal, km)</label>
+              <select id="distMaxPreset">
+                <option value="2">2 km (standard)</option>
+                <option value="10">10 km (dérog. périurbain)</option>
+                <option value="20">20 km (dérog. rural / SIS)</option>
+                <option value="perso">Perso…</option>
+              </select>
+            </div>
+            <div>
+              <label>Valeur perso (km)</label>
+              <input id="distMaxPerso" type="number" min="0.5" step="0.5" placeholder="Ex. 5">
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Rayon de prospection (km)</label>
+              <input id="distExplor" type="number" min="0.5" step="0.5" placeholder="= distance max par défaut">
+            </div>
+            <div>
+              <label>Réseau</label>
+              <select id="reseau">
+                <option value="BT" selected>BT</option>
+                <option value="HTA">HTA</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Point libre — Latitude / Longitude</label>
+              <div class="row">
+                <input id="lat" type="number" step="0.000001" placeholder="45.191000">
+                <input id="lon" type="number" step="0.000001" placeholder="5.684000">
+              </div>
+            </div>
+            <div class="align-end">
+              <button id="btnRecentrer">Recentrer carte</button>
+              <button id="btnChargerSIS" class="ghost">Charger POI SIS</button>
+            </div>
+          </div>
+        </fieldset>
+      </section>
+
+      <!-- Tab: Prospection -->
+      <section id="tab-prosp" class="tab">
+        <fieldset class="fs">
+          <legend>Recherche de consommateurs (Overpass)</legend>
+          <div class="tags">
+            <label><input type="checkbox" class="cat" value="education" checked> Éducation</label>
+            <label><input type="checkbox" class="cat" value="sante" checked> Santé</label>
+            <label><input type="checkbox" class="cat" value="adm" checked> Administrations</label>
+            <label><input type="checkbox" class="cat" value="sport"> Sport</label>
+            <label><input type="checkbox" class="cat" value="commerce"> Commerce</label>
+            <label><input type="checkbox" class="cat" value="industrie"> Industrie légère</label>
+            <label><input type="checkbox" class="cat" value="parking"> Parkings (ombrière)</label>
+          </div>
+          <div class="row">
+            <button id="btnScan">Scanner le rayon</button>
+            <span class="muted small">Le scan interroge OSM dans le rayon sélectionné.</span>
+          </div>
+        </fieldset>
+      </section>
+
+      <!-- Tab: Participants -->
+      <section id="tab-part" class="tab">
+        <fieldset class="fs">
+          <legend>Participants PMO</legend>
+          <div class="row">
+            <div>
+              <label>Nom</label>
+              <input id="partNom" type="text" placeholder="Ex. Collège Jean Moulin">
+            </div>
+            <div>
+              <label>Lat / Lon</label>
+              <div class="row">
+                <input id="partLat" type="number" step="0.000001" placeholder="lat">
+                <input id="partLon" type="number" step="0.000001" placeholder="lon">
+              </div>
+            </div>
+          </div>
+          <div class="row">
+            <div>
+              <label>Type</label>
+              <select id="partType">
+                <option value="consumer">Consommateur</option>
+                <option value="producer">Producteur</option>
+              </select>
+            </div>
+            <div class="align-end">
+              <button id="btnAddPart" class="primary">Ajouter participant</button>
+            </div>
+          </div>
+
+          <div class="row">
+            <div>
+              <label>Importer participants (CSV ; Nom;Lat;Lon;consumer|producer)</label>
+              <input id="fileCsv" type="file" accept=".csv,text/csv">
+            </div>
+            <div class="align-end">
+              <button id="btnImportCsv">Importer</button>
+              <button id="btnExportCsv" class="ghost">Exporter</button>
+            </div>
+          </div>
+
+          <div id="listParts" class="list"></div>
+        </fieldset>
 
         <div class="row">
-          <div>
-            <label>Importer participants (CSV ; Nom;Lat;Lon;consumer|producer)</label>
-            <input id="fileCsv" type="file" accept=".csv,text/csv">
-          </div>
+          <button id="btnSaveLocal" class="primary">Enregistrer projet (local)</button>
           <div class="align-end">
-            <button id="btnImportCsv">Importer</button>
-            <button id="btnExportCsv" class="ghost">Exporter</button>
+            <button id="btnLoadLocal">Charger</button>
+            <button id="btnDeleteLocal" class="danger">Supprimer</button>
           </div>
         </div>
+      </section>
+    </aside>
 
-        <div id="listParts" class="list"></div>
-      </fieldset>
-
-      <div class="row">
-        <button id="btnSaveLocal" class="primary">Enregistrer projet (local)</button>
-        <div class="align-end">
-          <button id="btnLoadLocal">Charger</button>
-          <button id="btnDeleteLocal" class="danger">Supprimer</button>
-        </div>
+    <!-- Carte (sticky) -->
+    <section class="panel map-wrap">
+      <div class="map-sticky">
+        <div id="map"></div>
+        <div class="fab" id="fabOptions" aria-label="Options">☰</div>
       </div>
-    </section>
-
-    <section class="panel">
-      <div id="map"></div>
     </section>
   </main>
 
