@@ -2,10 +2,15 @@
   --bg:#0b1020; --panel:#11162a; --ink:#e8eaf0; --muted:#c6c9d1;
   --brand:#37C3AF; --accent:#FFCC33; --danger:#cc2b4a; --line:#20263d;
 }
+
+/* Reset & base */
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
 body.no-scroll{overflow:hidden}
+.hidden{display:none}
+
+/* Header */
 header{position:sticky;top:0;z-index:1000;background:var(--panel);border-bottom:1px solid var(--line);padding:.7rem .9rem;display:flex;gap:1rem;align-items:center}
 header h1{font-size:14px;margin:0}
 .muted{color:var(--muted)} .small{font-size:12px}
@@ -17,12 +22,14 @@ header h1{font-size:14px;margin:0}
 
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
 .side-scroll{max-height:calc(100vh - 80px);overflow:auto;scroll-behavior:smooth}
+
+/* Carte */
 .map-wrap{padding:0}
 .map-sticky{position:sticky;top:72px;padding:10px}
 @media (max-width:920px){ .map-sticky{top:64px} }
-
-/* Carte + FAB */
 #map{min-height:72vh;border-radius:12px;overflow:hidden}
+
+/* FAB mobile */
 .fab{
   display:none;position:absolute;right:22px;bottom:22px;cursor:pointer;
   background:#0f1426;border:1px solid var(--line);border-radius:999px;
@@ -34,8 +41,7 @@ header h1{font-size:14px;margin:0}
   #side.open{display:block;position:fixed;inset:72px 8px 8px 8px;z-index:1001;max-height:unset;overflow:auto}
 }
 
-/* UI générale */
-.grid{display:grid;gap:.75rem}
+/* Form & controls */
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 label{font-size:12px;color:var(--muted);display:block;margin-bottom:.25rem}
 input,select,button{background:#0f1426;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;font:inherit}
@@ -46,15 +52,17 @@ button.ghost{background:transparent}
 button.danger{background:#3a1020;border-color:#5b1830}
 button.danger:hover{background:#52152d}
 .align-end{display:flex;gap:.5rem;align-items:end;justify-content:flex-end}
-.hidden{display:none}
+
+/* Error box */
 #error-box{border:1px solid #5b2431;background:#2a0e17;color:#ffd7df;border-radius:10px;padding:.6rem .75rem;white-space:pre-wrap;margin-bottom:.5rem}
 
-/* KPI + légende */
+/* KPIs & légende */
 .kpis{display:grid;gap:.5rem;margin-bottom:.25rem}
 .kpis-4{grid-template-columns:repeat(4,1fr)}
 .kpi{background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.6rem}
 .kpi .lbl{font-size:12px;color:var(--muted)}
 .kpi b{display:block;margin-top:.2rem;font-size:18px}
+
 .legend{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.25rem 0 .5rem}
 .pill{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:.1rem .5rem;color:var(--muted)}
 .chip{display:inline-flex;gap:.4rem;align-items:center;background:#0f1426;border:1px solid var(--line);border-radius:999px;padding:.25rem .55rem}
@@ -63,35 +71,17 @@ button.danger:hover{background:#52152d}
 .dot.cons{background:#4ea2ff}
 .dot.cand{background:#ff6b7a}
 
-/* Fieldsets + listes */
+/* Fieldsets */
 .fs{border:1px dashed var(--line);border-radius:10px;padding:.6rem}
 .fs legend{padding:0 .4rem;color:var(--muted)}
-.tags{display:flex;flex-wrap:wrap;gap:.75rem}
-.list{display:grid;gap:.35rem;margin-top:.4rem}
-.part{display:flex;justify-content:space-between;align-items:center;gap:.5rem;background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.4rem .55rem}
-.part .meta{font-size:12px;color:var(--muted)}
 
-/* icône producteur (divIcon) */
-.prod-icon{transform: translate(-12px,-24px);}
-.prod-icon .pin{
-  width:20px;height:20px;border-radius:50%;
-  background:#f5b841;border:2px solid #b58900; box-shadow:0 0 0 2px rgba(0,0,0,.25);
-}
-
-/* radios + onglets */
-.radio{display:flex;gap:1rem;align-items:center}
+/* Onglets (UI) */
 .seg{display:flex;gap:6px;margin:.4rem 0 .6rem}
 .seg-btn{
   flex:1;cursor:pointer;background:#0f1426;border:1px solid var(--line);border-radius:10px;
   padding:.4rem .6rem;text-align:center
 }
 .seg-btn.active{border-color:#1b4f3a;background:#103024}
-.tab{display:none}
-.tab.active{display:block}
-/* Périmètre: pane dédié (halo visible) */
-.leaflet-pane.perimeter-pane { mix-blend-mode: normal; }
-
-/* Segments compacts + badge */
 .seg.seg-compact .seg-btn{padding:.35rem .4rem;font-size:12px}
 .seg-btn.badge{position:relative}
 .seg-btn.badge::after{
@@ -99,9 +89,26 @@ button.danger:hover{background:#52152d}
   position:absolute;top:-6px;right:-6px;background:#ff6b7a;color:#000;
   border-radius:999px;padding:0 6px;font-size:10px;border:1px solid #000
 }
+.tab{display:none}
+.tab.active{display:block}
 
-/* Étiquette flottante sur la pire paire */
+/* Liste participants */
+.list{display:grid;gap:.35rem;margin-top:.4rem}
+.part{display:flex;justify-content:space-between;align-items:center;gap:.5rem;background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.4rem .55rem}
+.part .meta{font-size:12px;color:var(--muted)}
+
+/* Icône producteur (divIcon) */
+.prod-icon{transform: translate(-12px,-24px);}
+.prod-icon .pin{
+  width:20px;height:20px;border-radius:50%;
+  background:#f5b841;border:2px solid #b58900; box-shadow:0 0 0 2px rgba(0,0,0,.25);
+}
+
+/* Amélioration visibilité du périmètre via pane dédié (déclaré dans app.js) */
+.leaflet-pane.perimeter-pane { mix-blend-mode: normal; }
+
+/* Étiquette “pire paire” */
 .maxpair-label{
-  background:#0f1426; color:#e8eaf0; border:1px solid #20263d;
+  background:#0f1426; color:#e8eaf0; border:1px solid var(--line);
   padding:.25rem .4rem; border-radius:8px; font-size:12px
 }
