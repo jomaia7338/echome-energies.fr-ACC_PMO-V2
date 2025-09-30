@@ -3,11 +3,10 @@
   --brand:#37C3AF; --accent:#FFCC33; --danger:#cc2b4a; --line:#20263d;
 }
 
-/* Reset & base */
+/* Base */
 *{box-sizing:border-box}
 html,body{height:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial}
-body.no-scroll{overflow:hidden}
 .hidden{display:none}
 
 /* Header */
@@ -15,13 +14,13 @@ header{position:sticky;top:0;z-index:1000;background:var(--panel);border-bottom:
 header h1{font-size:14px;margin:0}
 .muted{color:var(--muted)} .small{font-size:12px}
 
-/* Layout: panneau scrollable + carte sticky */
+/* Layout */
 .layout{display:grid;grid-template-columns:420px 1fr;gap:12px;padding:12px;}
 @media (max-width:1100px){ .layout{grid-template-columns:360px 1fr} }
 @media (max-width:920px){ .layout{grid-template-columns:1fr} }
 
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:10px}
-.side-scroll{max-height:calc(100vh - 80px);overflow:auto;scroll-behavior:smooth}
+.side-scroll{max-height:calc(100vh - 80px);overflow:auto}
 
 /* Carte */
 .map-wrap{padding:0}
@@ -41,11 +40,9 @@ header h1{font-size:14px;margin:0}
   #side.open{display:block;position:fixed;inset:72px 8px 8px 8px;z-index:1001;max-height:unset;overflow:auto}
 }
 
-/* Form & controls */
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 label{font-size:12px;color:var(--muted);display:block;margin-bottom:.25rem}
 input,select,button{background:#0f1426;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;font:inherit}
-input:focus,select:focus,button:focus{outline:1px solid #2a3866}
 button.primary{background:#103024;border-color:#1b4f3a}
 button.primary:hover{background:#124533}
 button.ghost{background:transparent}
@@ -53,29 +50,7 @@ button.danger{background:#3a1020;border-color:#5b1830}
 button.danger:hover{background:#52152d}
 .align-end{display:flex;gap:.5rem;align-items:end;justify-content:flex-end}
 
-/* Error box */
-#error-box{border:1px solid #5b2431;background:#2a0e17;color:#ffd7df;border-radius:10px;padding:.6rem .75rem;white-space:pre-wrap;margin-bottom:.5rem}
-
-/* KPIs & légende */
-.kpis{display:grid;gap:.5rem;margin-bottom:.25rem}
-.kpis-4{grid-template-columns:repeat(4,1fr)}
-.kpi{background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.6rem}
-.kpi .lbl{font-size:12px;color:var(--muted)}
-.kpi b{display:block;margin-top:.2rem;font-size:18px}
-
-.legend{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.25rem 0 .5rem}
-.pill{display:inline-block;font-size:11px;border:1px solid var(--line);border-radius:999px;padding:.1rem .5rem;color:var(--muted)}
-.chip{display:inline-flex;gap:.4rem;align-items:center;background:#0f1426;border:1px solid var(--line);border-radius:999px;padding:.25rem .55rem}
-.dot{width:10px;height:10px;border-radius:50%}
-.dot.prod{background:#f5b841}
-.dot.cons{background:#4ea2ff}
-.dot.cand{background:#ff6b7a}
-
-/* Fieldsets */
-.fs{border:1px dashed var(--line);border-radius:10px;padding:.6rem}
-.fs legend{padding:0 .4rem;color:var(--muted)}
-
-/* Onglets (UI) */
+/* Segments / Tabs */
 .seg{display:flex;gap:6px;margin:.4rem 0 .6rem}
 .seg-btn{
   flex:1;cursor:pointer;background:#0f1426;border:1px solid var(--line);border-radius:10px;
@@ -83,32 +58,52 @@ button.danger:hover{background:#52152d}
 }
 .seg-btn.active{border-color:#1b4f3a;background:#103024}
 .seg.seg-compact .seg-btn{padding:.35rem .4rem;font-size:12px}
-.seg-btn.badge{position:relative}
-.seg-btn.badge::after{
-  content: attr(data-badge);
-  position:absolute;top:-6px;right:-6px;background:#ff6b7a;color:#000;
-  border-radius:999px;padding:0 6px;font-size:10px;border:1px solid #000
-}
 .tab{display:none}
 .tab.active{display:block}
+
+/* Toggles */
+.toggle{display:flex;gap:.5rem;align-items:center}
+.toggle input{width:1.1rem;height:1.1rem}
+
+/* KPIs */
+.kpis{display:grid;gap:.5rem;margin-bottom:.25rem}
+.kpis-4{grid-template-columns:repeat(4,1fr)}
+.kpi{background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.6rem}
+.kpi .lbl{font-size:12px;color:var(--muted)}
+.kpi b{display:block;margin-top:.2rem;font-size:18px}
+
+/* Legend chips (optionnel si besoin) */
+.chip{display:inline-flex;gap:.4rem;align-items:center;background:#0f1426;border:1px solid var(--line);border-radius:999px;padding:.25rem .55rem}
+.dot{width:10px;height:10px;border-radius:50%}
+
+/* Error box */
+#error-box{border:1px solid #5b2431;background:#2a0e17;color:#ffd7df;border-radius:10px;padding:.6rem .75rem;white-space:pre-wrap;margin-bottom:.5rem}
 
 /* Liste participants */
 .list{display:grid;gap:.35rem;margin-top:.4rem}
 .part{display:flex;justify-content:space-between;align-items:center;gap:.5rem;background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.4rem .55rem}
 .part .meta{font-size:12px;color:var(--muted)}
 
-/* Icône producteur (divIcon) */
-.prod-icon{transform: translate(-12px,-24px);}
-.prod-icon .pin{
-  width:20px;height:20px;border-radius:50%;
-  background:#f5b841;border:2px solid #b58900; box-shadow:0 0 0 2px rgba(0,0,0,.25);
+/* Fiche prospect */
+.sidecard{
+  position:fixed; right:12px; top:84px; width:360px; max-width:95vw;
+  background:#0f1426; border:1px solid var(--line); border-radius:12px;
+  box-shadow:0 12px 40px rgba(0,0,0,.45); display:none; flex-direction:column; z-index:1200;
 }
+.sidecard.open{display:flex}
+.sidecard header{display:flex;justify-content:space-between;align-items:center;padding:.6rem .75rem;border-bottom:1px solid var(--line)}
+.sidecard h3{margin:.1rem 0 .15rem 0;font-size:16px}
+.sidecard section{padding:.6rem .75rem;max-height:50vh;overflow:auto}
+.sidecard .kv{display:grid;grid-template-columns:120px 1fr;gap:.25rem .5rem;margin:.4rem 0}
+.sidecard .kv .k{color:#c6c9d1;font-size:12px}
+.sidecard .kv .v{font-size:14px}
+.sidecard footer.actions{display:flex;gap:.5rem;padding:.6rem .75rem;border-top:1px solid var(--line)}
 
-/* Amélioration visibilité du périmètre via pane dédié (déclaré dans app.js) */
-.leaflet-pane.perimeter-pane { mix-blend-mode: normal; }
-
-/* Étiquette “pire paire” */
+/* Étiquettes */
 .maxpair-label{
   background:#0f1426; color:#e8eaf0; border:1px solid var(--line);
   padding:.25rem .4rem; border-radius:8px; font-size:12px
 }
+
+/* Leaflet scale on top */
+.leaflet-top.leaflet-left { z-index: 1000; }
