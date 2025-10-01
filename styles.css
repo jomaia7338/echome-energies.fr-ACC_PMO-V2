@@ -25,8 +25,14 @@ header h1{font-size:14px;margin:0}
 /* Carte */
 .map-wrap{padding:0}
 .map-sticky{position:sticky;top:72px;padding:10px}
-@media (max-width:920px){ .map-sticky{top:64px} }
+@media (max-width:920px){ .map-sticky{top:8px; padding:8px} }
 #map{min-height:72vh;border-radius:12px;overflow:hidden}
+@supports (height: 100dvh){
+  #map{ min-height: calc(100dvh - 100px) }
+}
+@supports (height: 100svh){
+  #map{ min-height: calc(100svh - 100px) }
+}
 
 /* FAB mobile */
 .fab{
@@ -36,13 +42,32 @@ header h1{font-size:14px;margin:0}
 }
 @media (max-width:920px){
   .fab{display:block}
-  #side{display:none}
-  #side.open{display:block;position:fixed;inset:72px 8px 8px 8px;z-index:1001;max-height:unset;overflow:auto}
+  #side{
+    position:fixed; inset:auto 0 0 0; max-height:72vh;
+    transform:translateY(62vh); transition:transform .24s ease;
+    border-top-left-radius:16px; border-top-right-radius:16px;
+    box-shadow:0 -12px 32px rgba(0,0,0,.45);
+  }
+  #side.open{ transform:translateY(0) }
+  .side-scroll{max-height:unset}
 }
 
+/* Bottom sheet grabber */
+.sheet-grabber{
+  display:none;
+  width:100%; height:14px; position:sticky; top:0; z-index:2;
+  background:linear-gradient(to bottom, rgba(0,0,0,.12), transparent);
+}
+.sheet-grabber::after{
+  content:""; display:block; margin:.35rem auto 0; width:38px; height:4px;
+  border-radius:999px; background:#3a4466;
+}
+@media (max-width:920px){ .sheet-grabber{ display:block } }
+
+/* Form & controls */
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 label{font-size:12px;color:var(--muted);display:block;margin-bottom:.25rem}
-input,select,button{background:#0f1426;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;font:inherit}
+input,select,button{background:#0f1426;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;font:inherit;min-height:44px}
 button.primary{background:#103024;border-color:#1b4f3a}
 button.primary:hover{background:#124533}
 button.ghost{background:transparent}
@@ -54,7 +79,7 @@ button.danger:hover{background:#52152d}
 .seg{display:flex;gap:6px;margin:.4rem 0 .6rem}
 .seg-btn{
   flex:1;cursor:pointer;background:#0f1426;border:1px solid var(--line);border-radius:10px;
-  padding:.4rem .6rem;text-align:center
+  padding:.4rem .6rem;text-align:center;min-height:38px
 }
 .seg-btn.active{border-color:#1b4f3a;background:#103024}
 .seg.seg-compact .seg-btn{padding:.35rem .4rem;font-size:12px}
@@ -71,10 +96,6 @@ button.danger:hover{background:#52152d}
 .kpi{background:#0f1426;border:1px solid var(--line);border-radius:10px;padding:.6rem}
 .kpi .lbl{font-size:12px;color:var(--muted)}
 .kpi b{display:block;margin-top:.2rem;font-size:18px}
-
-/* Legend chips (optionnel si besoin) */
-.chip{display:inline-flex;gap:.4rem;align-items:center;background:#0f1426;border:1px solid var(--line);border-radius:999px;padding:.25rem .55rem}
-.dot{width:10px;height:10px;border-radius:50%}
 
 /* Error box */
 #error-box{border:1px solid #5b2431;background:#2a0e17;color:#ffd7df;border-radius:10px;padding:.6rem .75rem;white-space:pre-wrap;margin-bottom:.5rem}
@@ -98,6 +119,32 @@ button.danger:hover{background:#52152d}
 .sidecard .kv .k{color:#c6c9d1;font-size:12px}
 .sidecard .kv .v{font-size:14px}
 .sidecard footer.actions{display:flex;gap:.5rem;padding:.6rem .75rem;border-top:1px solid var(--line)}
+
+/* Barre d’actions mobile */
+.mobile-toolbar{
+  position:fixed; left:50%; transform:translateX(-50%);
+  bottom:16px; z-index:1100; display:flex; gap:8px; align-items:center;
+  background:#0f1426; border:1px solid var(--line); border-radius:999px;
+  padding:6px 8px; box-shadow:0 10px 28px rgba(0,0,0,.35);
+}
+.mobile-toolbar button{
+  min-width:44px; min-height:44px; border-radius:999px;
+  display:flex; align-items:center; justify-content:center;
+  padding:0 .8rem; font-size:18px
+}
+.mt-chipset{ display:flex; gap:6px; padding:0 4px }
+.mt-chipset .chip{
+  min-width:44px; min-height:36px; border-radius:999px; padding:0 .6rem;
+  background:#0b1428; border:1px solid #223055; font-weight:700;
+}
+.mt-chipset .chip.active{ background:#103024; border-color:#1b4f3a }
+
+/* Icône producteur */
+.prod-icon{transform: translate(-10px,-20px);}
+.prod-icon .pin{
+  width:22px;height:22px;border-radius:50%;
+  background:#f5b841;border:2px solid #b58900; box-shadow:0 0 0 2px rgba(0,0,0,.25);
+}
 
 /* Étiquettes */
 .maxpair-label{
