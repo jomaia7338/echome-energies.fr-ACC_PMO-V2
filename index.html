@@ -2,8 +2,9 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Echome Énergies — ACC/PMO Terrain (V3)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="format-detection" content="telephone=no" />
+  <title>Echome Énergies — ACC/PMO Terrain (V3 Mobile)</title>
 
   <!-- Leaflet -->
   <link rel="stylesheet"
@@ -25,8 +26,9 @@
   </header>
 
   <main class="layout">
-    <!-- PANNEAU OPTIONS -->
+    <!-- PANNEAU OPTIONS (bottom sheet mobile) -->
     <aside id="side" class="panel side-scroll">
+      <div class="sheet-grabber" aria-hidden="true"></div>
       <div id="error-box" class="hidden"></div>
 
       <!-- KPIs -->
@@ -49,25 +51,38 @@
       <section id="tab-terrain" class="tab active">
         <fieldset class="fs">
           <legend>Producteur</legend>
+
           <div class="row">
             <div>
               <label>Adresse (BAN)</label>
-              <input id="addr" type="text" placeholder="10 rue de la République, 38000 Grenoble">
+              <input id="addr" type="text" autocomplete="street-address" placeholder="10 rue de la République, 38000 Grenoble">
             </div>
             <div class="align-end">
               <button id="btnGeocode">Géocoder</button>
             </div>
           </div>
+
+          <div class="row">
+            <div>
+              <label>Adresse postale complète (BAN)</label>
+              <input id="addrFull" type="text" placeholder="—" readonly>
+            </div>
+            <div class="align-end">
+              <span class="muted small">Astuce : <b>ALT-clic</b> (desktop) ou <b>pression longue</b> (mobile) pour fixer le producteur</span>
+            </div>
+          </div>
+
           <div class="row">
             <div>
               <label>Latitude</label>
-              <input id="prodLat" type="number" step="0.000001" placeholder="45.191000">
+              <input id="prodLat" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="45.191000">
             </div>
             <div>
               <label>Longitude</label>
-              <input id="prodLon" type="number" step="0.000001" placeholder="5.684000">
+              <input id="prodLon" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="5.684000">
             </div>
           </div>
+
           <div class="row">
             <div class="align-end">
               <button id="btnSetProducerFromInputs" class="primary">Définir (coord.)</button>
@@ -139,8 +154,8 @@
             <div>
               <label>Lat / Lon</label>
               <div class="row">
-                <input id="partLat" type="number" step="0.000001" placeholder="lat">
-                <input id="partLon" type="number" step="0.000001" placeholder="lon">
+                <input id="partLat" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="lat">
+                <input id="partLon" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="lon">
               </div>
             </div>
           </div>
@@ -205,6 +220,18 @@
       <div class="map-sticky">
         <div id="map"></div>
         <div class="fab" id="fabOptions" aria-label="Options">☰</div>
+
+        <!-- BARRE D’ACTIONS MOBILE -->
+        <div class="mobile-toolbar" id="mobileToolbar">
+          <button id="mtLocate" title="Me localiser">📍</button>
+          <button id="mtScan" title="Scanner prospects">🔎</button>
+          <div class="mt-chipset">
+            <button class="chip" data-d="2">2</button>
+            <button class="chip" data-d="10">10</button>
+            <button class="chip" data-d="20">20</button>
+          </div>
+          <button id="mtOptions" title="Options">☰</button>
+        </div>
       </div>
     </section>
   </main>
