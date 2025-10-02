@@ -2,9 +2,9 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="format-detection" content="telephone=no" />
-  <title>Echome Énergies — ACC/PMO Terrain (V3 Mobile)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="format-detection" content="telephone=no">
+  <title>Echome Énergies — ACC/PMO Terrain (V3-mobile)</title>
 
   <!-- Leaflet -->
   <link rel="stylesheet"
@@ -26,7 +26,7 @@
   </header>
 
   <main class="layout">
-    <!-- PANNEAU OPTIONS (bottom sheet mobile) -->
+    <!-- PANNEAU OPTIONS -->
     <aside id="side" class="panel side-scroll">
       <div class="sheet-grabber" aria-hidden="true"></div>
       <div id="error-box" class="hidden"></div>
@@ -105,7 +105,7 @@
           <div class="row">
             <div>
               <label>Valeur perso (km)</label>
-              <input id="distMaxPerso" type="number" min="0.5" step="0.5" placeholder="Ex. 5">
+              <input id="distMaxPerso" type="number" inputmode="decimal" min="0.5" step="0.5" placeholder="Ex. 5">
             </div>
             <div class="align-end">
               <label class="toggle"><input id="toggleClickAdd" type="checkbox" checked> Clic = ajouter consommateur</label>
@@ -221,7 +221,7 @@
         <div id="map"></div>
         <div class="fab" id="fabOptions" aria-label="Options">☰</div>
 
-        <!-- BARRE D’ACTIONS MOBILE -->
+        <!-- Barre d’actions mobile -->
         <div class="mobile-toolbar" id="mobileToolbar">
           <button id="mtLocate" title="Me localiser">📍</button>
           <button id="mtScan" title="Scanner prospects">🔎</button>
