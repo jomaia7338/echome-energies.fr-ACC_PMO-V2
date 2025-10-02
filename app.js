@@ -76,7 +76,8 @@ const app = {
     producer: null,         // L.marker
     parts: L.layerGroup(),
     worstLine: null,
-    worstLabel: null
+    worstLabel: null,
+    perimeterGuide: null
   }
 };
 
@@ -139,16 +140,44 @@ function setProducer({lat, lon}, opts={}){
     }
   })();
 
+  drawPerimeterGuide();
   afterModelChange();
 }
 function clearProducer(){
   app.producteur = null;
   if(app.layers.producer){ app.map.removeLayer(app.layers.producer); app.layers.producer = null; }
   if($('addrFull')) $('addrFull').value = '';
+  if(app.layers.perimeterGuide){ app.map.removeLayer(app.layers.perimeterGuide); app.layers.perimeterGuide = null; }
   afterModelChange();
 }
 
 // ================== Participants ==================
+function bindMarkerDeletion(marker, payload){
+  // Popup "Supprimer"
+  const html = `<div style="min-width:160px">
+    <b>${payload.nom || 'Participant'}</b><br>
+    ${payload.type || 'consumer'}<br>
+    ${payload.lat.toFixed(5)}, ${payload.lon.toFixed(5)}<br>
+    <button id="del-${payload.id}" class="btn danger" style="margin-top:6px">Supprimer</button>
+  </div>`;
+  marker.bindPopup(html);
+  marker.on('popupopen', ()=>{
+    const btn = document.getElementById(`del-${payload.id}`);
+    if(btn) btn.onclick = ()=> { marker.closePopup(); removeParticipant(payload.id); setStatus('Participant supprimé'); };
+  });
+
+  // Appui long (mobile) = confirmation suppression
+  let t=null, pressed=false;
+  marker.on('touchstart', ()=>{
+    pressed=true;
+    t=setTimeout(()=>{
+      if(!pressed) return;
+      if(confirm(`Supprimer "${payload.nom}" ?`)){ removeParticipant(payload.id); setStatus('Participant supprimé'); }
+    }, 650);
+  });
+  marker.on('touchend', ()=>{ pressed=false; if(t) clearTimeout(t); });
+}
+
 function addParticipant(p){
   app.participants.push(p);
   afterModelChange();
@@ -161,9 +190,9 @@ function redrawParticipants(){
   app.layers.parts.clearLayers();
   app.participants.forEach(p=>{
     const color = p.type==='producer' ? '#f5b841' : '#4ea2ff';
-    L.circleMarker([p.lat,p.lon],{ radius:6, color, weight:2, fillOpacity:.75 })
-      .bindPopup(`<b>${p.nom}</b><br>${p.type}<br>${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}`)
+    const marker = L.circleMarker([p.lat,p.lon], { radius:6, color, weight:2, fillOpacity:.75 })
       .addTo(app.layers.parts);
+    bindMarkerDeletion(marker, p);
   });
   // liste
   const wrap = $('listParts'); if(wrap){ wrap.innerHTML='';
@@ -174,6 +203,22 @@ function redrawParticipants(){
       wrap.appendChild(div);
     });
   }
+}
+
+// ================== Périmètre guide ==================
+function drawPerimeterGuide(){
+  if(app.layers.perimeterGuide){ app.map.removeLayer(app.layers.perimeterGuide); app.layers.perimeterGuide = null; }
+  if(!app.producteur) return;
+  const radiusMeters = (app.distMaxKm/2) * 1000; // D/2 en mètres
+  app.layers.perimeterGuide = L.circle([app.producteur.lat, app.producteur.lon], {
+    radius: radiusMeters,
+    color: '#7A6AFB',
+    weight: 2,
+    opacity: 0.9,
+    fillOpacity: 0.05,
+    fillColor: '#7A6AFB',
+    dashArray: '6,6'
+  }).addTo(app.map);
 }
 
 // ================== Conformité (pire paire) ==================
@@ -203,14 +248,17 @@ function updateCompliance(){
   const pts = [];
   if(app.producteur) pts.push(app.producteur);
   app.participants.forEach(p=>pts.push(p));
+
   if(pts.length < 2){
     clearWorstOverlay();
     $('badgeCompliance').textContent = '—';
+    setStatus(`D = ${app.distMaxKm} km — poser des points`);
     return;
   }
   const w = worstPair(pts);
   const ok = w.d <= app.distMaxKm;
   $('badgeCompliance').textContent = ok ? '✔︎' : '✖︎';
+  setStatus(`D = ${app.distMaxKm} km — pire paire ${w.d.toFixed(2)} km`);
   drawWorstOverlay(w, app.distMaxKm);
 }
 
@@ -260,7 +308,6 @@ function applyPayload(payload){
 
 // ================== Glue (UI wiring) ==================
 function highlightMode(){
-  // simplement changer le statut pour feedback
   if(app.mode==='set-producer') setStatus('Mode: poser le producteur (tap)');
   else if(app.mode==='add-part') setStatus('Mode: ajouter un participant (tap)');
   else setStatus('Prêt');
@@ -360,6 +407,7 @@ function wireDiameterChips(){
       document.querySelectorAll('#chipDiameter .chip').forEach(b=>{ b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
       btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
       app.distMaxKm = Number(btn.getAttribute('data-d')) || 2;
+      drawPerimeterGuide();
       onProjectChanged();
     });
   });
@@ -369,6 +417,7 @@ function wireDiameterChips(){
 function afterModelChange(){
   redrawParticipants();
   updateCompliance();
+  drawPerimeterGuide();
   saveProject();
 }
 function onProjectChanged(){
@@ -381,7 +430,15 @@ function onProjectChanged(){
   try{
     setStatus('Initialisation…');
     setupMap();
-    wireSheets();
+    // Wire UI
+    (function wireSheets(){
+      // Producer
+      $('btnProducer')?.addEventListener('click', ()=> openSheet('sheetProducer'));
+      document.querySelectorAll('[data-close="#sheetProducer"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetProducer')));
+      // Participants
+      $('btnParticipants')?.addEventListener('click', ()=> openSheet('sheetParticipants'));
+      document.querySelectorAll('[data-close="#sheetParticipants"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetParticipants')));
+    })();
     wireProducer();
     wireParticipants();
     wireDiameterChips();
