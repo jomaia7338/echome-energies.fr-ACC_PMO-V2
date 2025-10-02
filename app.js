@@ -53,6 +53,13 @@ function haversineMeters(a,b){
 }
 const distKm = (a,b)=>haversineMeters(a,b)/1000;
 
+// Validation coordonnées (anti (0,0) & NaN)
+function isValidLatLon(lat, lon){
+  return Number.isFinite(lat) && Number.isFinite(lon)
+    && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
+    && !(lat === 0 && lon === 0);
+}
+
 // ================== App state ==================
 const STORAGE_NS = 'echome-acc-mvp';
 const STORAGE_LAST = `${STORAGE_NS}:lastProjectId`;
@@ -103,10 +110,35 @@ function setupMap(){
     }
   });
 
+  // Appui long carte = ajouter un consommateur (terrain)
+  enableLongPressAddOnMap();
+
   // Confort tactile
   app.map.scrollWheelZoom.disable();
   app.map.touchZoom.enable();
   app.map.doubleClickZoom.enable();
+}
+
+// Appui long carte → ajoute un consommateur
+function enableLongPressAddOnMap(){
+  let t=null, started=false, startPt=null;
+  app.map.on('touchstart', (e)=>{
+    started = true;
+    const t0 = e.touches?.[0]; if(!t0) return;
+    startPt = { x:t0.clientX, y:t0.clientY };
+    t = setTimeout(()=>{
+      if(!started) return;
+      const pt = app.map.mouseEventToLatLng({ clientX:startPt.x, clientY:startPt.y, target: app.map._container });
+      const nom = `Consommateur ${app.participants.length+1}`;
+      addParticipant({ id:newId(), nom, lat:pt.lat, lon:pt.lng, type:'consumer' });
+      setStatus('Participant ajouté (pression longue)');
+    }, 650);
+  }, { passive:true });
+  app.map.on('touchmove', (e)=>{
+    const t1 = e.touches?.[0]; if(!t1||!startPt) return;
+    if(Math.hypot(t1.clientX-startPt.x, t1.clientY-startPt.y)>12){ started=false; if(t) clearTimeout(t); }
+  }, { passive:true });
+  app.map.on('touchend', ()=>{ started=false; if(t) clearTimeout(t); });
 }
 
 // ================== Sheets (open/close) ==================
@@ -115,6 +147,8 @@ function closeSheet(id){ const el=$(id); if(!el) return; el.classList.remove('op
 
 // ================== Producer ==================
 function setProducer({lat, lon}, opts={}){
+  if(!isValidLatLon(lat, lon)){ showError('Coordonnées producteur invalides'); return; }
+
   app.producteur = { lat, lon };
   if($('prodLat')) $('prodLat').value = lat.toFixed(6);
   if($('prodLon')) $('prodLon').value = lon.toFixed(6);
@@ -179,6 +213,7 @@ function bindMarkerDeletion(marker, payload){
 }
 
 function addParticipant(p){
+  if(!isValidLatLon(p.lat, p.lon)){ showError('Coordonnées participant invalides'); return; }
   app.participants.push(p);
   afterModelChange();
 }
@@ -205,20 +240,22 @@ function redrawParticipants(){
   }
 }
 
-// ================== Périmètre guide ==================
+// ================== Périmètre guide (rayon = D/2) ==================
 function drawPerimeterGuide(){
   if(app.layers.perimeterGuide){ app.map.removeLayer(app.layers.perimeterGuide); app.layers.perimeterGuide = null; }
-  if(!app.producteur) return;
-  const radiusMeters = (app.distMaxKm/2) * 1000; // D/2 en mètres
+  if(!app.producteur || !isValidLatLon(app.producteur.lat, app.producteur.lon)) return;
+
+  const radiusMeters = (app.distMaxKm/2) * 1000; // rayon = D/2
   app.layers.perimeterGuide = L.circle([app.producteur.lat, app.producteur.lon], {
     radius: radiusMeters,
-    color: '#7A6AFB',
-    weight: 2,
-    opacity: 0.9,
-    fillOpacity: 0.05,
-    fillColor: '#7A6AFB',
-    dashArray: '6,6'
+    color: '#6e5bfd',
+    weight: 3,
+    opacity: 1,
+    fillOpacity: 0.07,
+    fillColor: '#6e5bfd',
+    dashArray: '8,6'
   }).addTo(app.map);
+  app.layers.perimeterGuide.bringToFront?.();
 }
 
 // ================== Conformité (pire paire) ==================
@@ -297,7 +334,7 @@ function applyPayload(payload){
   });
 
   // producer marker + inputs
-  if(app.producteur){
+  if(app.producteur && isValidLatLon(app.producteur.lat, app.producteur.lon)){
     setProducer(app.producteur, { reverse:true });
     app.map.setView([app.producteur.lat, app.producteur.lon], 13);
   }else{
@@ -353,7 +390,7 @@ function wireProducer(){
 
   $('btnSetProducerFromInputs')?.addEventListener('click', ()=>{
     const la = Number($('prodLat')?.value), lo = Number($('prodLon')?.value);
-    if(!Number.isFinite(la)||!Number.isFinite(lo)) return showError('Coordonnées producteur invalides');
+    if(!isValidLatLon(la, lo)) return showError('Coordonnées producteur invalides');
     setProducer({ lat:la, lon:lo }, { reverse:true }); app.map.setView([la, lo], 14);
     setStatus('Producteur défini (coord.)');
   });
@@ -367,7 +404,7 @@ function wireParticipants(){
     const nom = $('partNom')?.value?.trim() || `Consommateur ${app.participants.length+1}`;
     const la = Number($('partLat')?.value), lo = Number($('partLon')?.value);
     const type = ($('partType')?.value || 'consumer').toLowerCase();
-    if(!Number.isFinite(la)||!Number.isFinite(lo)) return showError('Coordonnées invalides');
+    if(!isValidLatLon(la, lo)) return showError('Coordonnées invalides');
     addParticipant({ id:newId(), nom, lat:la, lon:lo, type });
     $('partNom').value=''; $('partLat').value=''; $('partLon').value='';
     setStatus('Participant ajouté');
@@ -383,7 +420,7 @@ function wireParticipants(){
     for(let i=startIdx;i<rows.length;i++){
       const [nom, lat, lon, typeRaw] = rows[i].split(';').map(s=>s?.trim());
       const la=Number(lat), lo=Number(lon), type=(typeRaw||'consumer').toLowerCase();
-      if(nom && Number.isFinite(la) && Number.isFinite(lo)) out.push({ id:newId(), nom, lat:la, lon:lo, type });
+      if(nom && isValidLatLon(la, lo)) out.push({ id:newId(), nom, lat:la, lon:lo, type });
     }
     out.forEach(addParticipant);
     setStatus(`Importé ${out.length} participants`);
