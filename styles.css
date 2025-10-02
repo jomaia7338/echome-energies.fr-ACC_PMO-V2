@@ -25,14 +25,8 @@ header h1{font-size:14px;margin:0}
 /* Carte */
 .map-wrap{padding:0}
 .map-sticky{position:sticky;top:72px;padding:10px}
-@media (max-width:920px){ .map-sticky{top:8px; padding:8px} }
-#map{min-height:72vh;border-radius:12px;overflow:hidden}
-@supports (height: 100dvh){
-  #map{ min-height: calc(100dvh - 100px) }
-}
-@supports (height: 100svh){
-  #map{ min-height: calc(100svh - 100px) }
-}
+@media (max-width:920px){ .map-sticky{top:8px} }
+#map{min-height:calc(100dvh - 140px);border-radius:12px;overflow:hidden}
 
 /* FAB mobile */
 .fab{
@@ -42,29 +36,46 @@ header h1{font-size:14px;margin:0}
 }
 @media (max-width:920px){
   .fab{display:block}
-  #side{
-    position:fixed; inset:auto 0 0 0; max-height:72vh;
-    transform:translateY(62vh); transition:transform .24s ease;
-    border-top-left-radius:16px; border-top-right-radius:16px;
-    box-shadow:0 -12px 32px rgba(0,0,0,.45);
-  }
-  #side.open{ transform:translateY(0) }
-  .side-scroll{max-height:unset}
+  #side{display:none}
+  #side.open{display:block;position:fixed;inset:72px 8px 8px 8px;z-index:1001;max-height:unset;overflow:auto}
 }
 
-/* Bottom sheet grabber */
-.sheet-grabber{
-  display:none;
-  width:100%; height:14px; position:sticky; top:0; z-index:2;
-  background:linear-gradient(to bottom, rgba(0,0,0,.12), transparent);
-}
+/* Bottom sheet mobile */
+.sheet-grabber{display:none;width:100%;height:14px;position:sticky;top:0;z-index:2;background:linear-gradient(to bottom, rgba(0,0,0,.12), transparent)}
 .sheet-grabber::after{
-  content:""; display:block; margin:.35rem auto 0; width:38px; height:4px;
-  border-radius:999px; background:#3a4466;
+  content:"";display:block;margin:.35rem auto 0;width:38px;height:4px;border-radius:999px;background:#3a4466
 }
-@media (max-width:920px){ .sheet-grabber{ display:block } }
+@media (max-width:920px){
+  .layout{grid-template-columns:1fr}
+  #side{
+    position:fixed;left:0;right:0;bottom:0;inset:auto 0 0 0;max-height:72vh;
+    transform:translateY(62vh);transition:transform .24s ease;
+    border-top-left-radius:16px;border-top-right-radius:16px;box-shadow:0 -12px 32px rgba(0,0,0,.45);display:block
+  }
+  #side.open{transform:translateY(0)}
+  .sheet-grabber{display:block}
+  .map-sticky{padding:8px}
+  #map{min-height:calc(100dvh - 100px)}
+}
 
-/* Form & controls */
+/* Barre d’actions mobile */
+.mobile-toolbar{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:16px;z-index:1100;display:flex;gap:8px;align-items:center;
+  background:#0f1426;border:1px solid var(--line);border-radius:999px;
+  padding:6px 8px;box-shadow:0 10px 28px rgba(0,0,0,.35)
+}
+.mobile-toolbar button{
+  min-width:44px;min-height:44px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  padding:0 .8rem;font-size:18px
+}
+.mt-chipset{display:flex;gap:6px;padding:0 4px}
+.mt-chipset .chip{
+  min-width:44px;min-height:36px;border-radius:999px;padding:0 .6rem;background:#0b1428;border:1px solid #223055;font-weight:700
+}
+.mt-chipset .chip.active{background:#103024;border-color:#1b4f3a}
+
+/* Form: cibles tactiles */
 .row{display:grid;grid-template-columns:1fr 1fr;gap:.6rem}
 label{font-size:12px;color:var(--muted);display:block;margin-bottom:.25rem}
 input,select,button{background:#0f1426;color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:.55rem .65rem;font:inherit;min-height:44px}
@@ -85,10 +96,6 @@ button.danger:hover{background:#52152d}
 .seg.seg-compact .seg-btn{padding:.35rem .4rem;font-size:12px}
 .tab{display:none}
 .tab.active{display:block}
-
-/* Toggles */
-.toggle{display:flex;gap:.5rem;align-items:center}
-.toggle input{width:1.1rem;height:1.1rem}
 
 /* KPIs */
 .kpis{display:grid;gap:.5rem;margin-bottom:.25rem}
@@ -120,24 +127,11 @@ button.danger:hover{background:#52152d}
 .sidecard .kv .v{font-size:14px}
 .sidecard footer.actions{display:flex;gap:.5rem;padding:.6rem .75rem;border-top:1px solid var(--line)}
 
-/* Barre d’actions mobile */
-.mobile-toolbar{
-  position:fixed; left:50%; transform:translateX(-50%);
-  bottom:16px; z-index:1100; display:flex; gap:8px; align-items:center;
-  background:#0f1426; border:1px solid var(--line); border-radius:999px;
-  padding:6px 8px; box-shadow:0 10px 28px rgba(0,0,0,.35);
+/* Étiquettes */
+.maxpair-label{
+  background:#0f1426; color:#e8eaf0; border:1px solid var(--line);
+  padding:.25rem .4rem; border-radius:8px; font-size:12px
 }
-.mobile-toolbar button{
-  min-width:44px; min-height:44px; border-radius:999px;
-  display:flex; align-items:center; justify-content:center;
-  padding:0 .8rem; font-size:18px
-}
-.mt-chipset{ display:flex; gap:6px; padding:0 4px }
-.mt-chipset .chip{
-  min-width:44px; min-height:36px; border-radius:999px; padding:0 .6rem;
-  background:#0b1428; border:1px solid #223055; font-weight:700;
-}
-.mt-chipset .chip.active{ background:#103024; border-color:#1b4f3a }
 
 /* Icône producteur */
 .prod-icon{transform: translate(-10px,-20px);}
@@ -146,11 +140,10 @@ button.danger:hover{background:#52152d}
   background:#f5b841;border:2px solid #b58900; box-shadow:0 0 0 2px rgba(0,0,0,.25);
 }
 
-/* Étiquettes */
-.maxpair-label{
-  background:#0f1426; color:#e8eaf0; border:1px solid var(--line);
-  padding:.25rem .4rem; border-radius:8px; font-size:12px
-}
-
-/* Leaflet scale on top */
+/* Leaflet scale */
 .leaflet-top.leaflet-left { z-index: 1000; }
+
+/* Safe area keyboards */
+@supports (height: 100svh){
+  #map{ min-height: calc(100svh - 140px) }
+}
