@@ -2,9 +2,13 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
+  <title>Echome Énergies — ACC Terrain (MVP)</title>
+
+  <!-- Mobile / PWA basics -->
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#11162a">
   <meta name="format-detection" content="telephone=no">
-  <title>Echome Énergies — ACC/PMO Terrain (V3-mobile)</title>
+  <link rel="icon" href="data:,">
 
   <!-- Leaflet -->
   <link rel="stylesheet"
@@ -15,244 +19,161 @@
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
           crossorigin="anonymous"></script>
 
+  <!-- Styles -->
   <link rel="stylesheet" href="./styles.css">
-  <meta name="theme-color" content="#37C3AF">
-  <link rel="icon" href="data:,">
 </head>
 <body>
-  <header>
-    <h1>Echome Énergies · Outil ACC/PMO — Terrain</h1>
-    <div id="status" class="muted">Prêt</div>
+  <!-- Bande supérieure minimaliste (statut) -->
+  <header class="topbar">
+    <div class="brand">Echome Énergies</div>
+    <div id="status" class="status">Prêt</div>
   </header>
 
-  <main class="layout">
-    <!-- PANNEAU OPTIONS -->
-    <aside id="side" class="panel side-scroll">
-      <div class="sheet-grabber" aria-hidden="true"></div>
-      <div id="error-box" class="hidden"></div>
+  <!-- Zone d'erreurs (discrète, déroulante) -->
+  <div id="error-box" class="error-box hidden" aria-live="polite"></div>
 
-      <!-- KPIs -->
-      <div class="kpis kpis-4">
-        <div class="kpi"><span class="lbl">Participants</span><b id="kpiPart">0</b></div>
-        <div class="kpi"><span class="lbl">Pire paire</span><b id="kpiWorst">—</b></div>
-        <div class="kpi"><span class="lbl">Conformité</span><b id="kpiLegal">—</b></div>
-        <div class="kpi"><span class="lbl">Prospects</span><b id="kpiCand">0</b></div>
-      </div>
-
-      <!-- Onglets -->
-      <div class="seg tabs">
-        <button class="seg-btn active" data-tab="tab-terrain">Terrain</button>
-        <button class="seg-btn" data-tab="tab-prosp">Prospection</button>
-        <button class="seg-btn" data-tab="tab-part">Participants</button>
-        <button class="seg-btn" data-tab="tab-projet">Projet</button>
-      </div>
-
-      <!-- TAB : TERRAIN -->
-      <section id="tab-terrain" class="tab active">
-        <fieldset class="fs">
-          <legend>Producteur</legend>
-
-          <div class="row">
-            <div>
-              <label>Adresse (BAN)</label>
-              <input id="addr" type="text" autocomplete="street-address" placeholder="10 rue de la République, 38000 Grenoble">
-            </div>
-            <div class="align-end">
-              <button id="btnGeocode">Géocoder</button>
-            </div>
-          </div>
-
-          <div class="row">
-            <div>
-              <label>Adresse postale complète (BAN)</label>
-              <input id="addrFull" type="text" placeholder="—" readonly>
-            </div>
-            <div class="align-end">
-              <span class="muted small">Astuce : <b>ALT-clic</b> (desktop) ou <b>pression longue</b> (mobile) pour fixer le producteur</span>
-            </div>
-          </div>
-
-          <div class="row">
-            <div>
-              <label>Latitude</label>
-              <input id="prodLat" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="45.191000">
-            </div>
-            <div>
-              <label>Longitude</label>
-              <input id="prodLon" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="5.684000">
-            </div>
-          </div>
-
-          <div class="row">
-            <div class="align-end">
-              <button id="btnSetProducerFromInputs" class="primary">Définir (coord.)</button>
-              <button id="btnLocate" class="ghost">📍 Me localiser</button>
-            </div>
-            <div class="align-end">
-              <button id="btnClearProducer" class="danger">Supprimer</button>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset class="fs">
-          <legend>Diamètre légal ACC</legend>
-          <div class="seg seg-compact" id="zoneBtns">
-            <button class="seg-btn active" data-d="2">2 km</button>
-            <button class="seg-btn" data-d="10">10 km</button>
-            <button class="seg-btn" data-d="20">20 km</button>
-            <button class="seg-btn" id="dPersoBtn">Perso…</button>
-          </div>
-          <div class="row">
-            <div>
-              <label>Valeur perso (km)</label>
-              <input id="distMaxPerso" type="number" inputmode="decimal" min="0.5" step="0.5" placeholder="Ex. 5">
-            </div>
-            <div class="align-end">
-              <label class="toggle"><input id="toggleClickAdd" type="checkbox" checked> Clic = ajouter consommateur</label>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset class="fs">
-          <legend>Affichages (visuels, non juridiques) — OFF par défaut</legend>
-          <div class="row">
-            <label class="toggle"><input type="checkbox" id="toggleMEC"> Afficher le cercle outil (MEC)</label>
-            <label class="toggle"><input type="checkbox" id="toggleFeasible"> Afficher la zone faisable (∩ disques D/2)</label>
-          </div>
-        </fieldset>
-      </section>
-
-      <!-- TAB : PROSPECTION -->
-      <section id="tab-prosp" class="tab">
-        <fieldset class="fs">
-          <legend>Catégories OSM</legend>
-          <div class="tags">
-            <label><input type="checkbox" class="cat" value="education" checked> Éducation</label>
-            <label><input type="checkbox" class="cat" value="sante" checked> Santé</label>
-            <label><input type="checkbox" class="cat" value="adm" checked> Administrations</label>
-            <label><input type="checkbox" class="cat" value="sport"> Sport</label>
-            <label><input type="checkbox" class="cat" value="commerce"> Commerce</label>
-            <label><input type="checkbox" class="cat" value="industrie"> Industrie</label>
-            <label><input type="checkbox" class="cat" value="parking"> Parkings</label>
-          </div>
-          <div class="row">
-            <button id="btnScan" class="primary">Scanner (rayon = D autour du producteur)</button>
-            <div class="muted small">Pré-filtre D → post-filtre admissibilité pair-à-pair.</div>
-          </div>
-        </fieldset>
-      </section>
-
-      <!-- TAB : PARTICIPANTS -->
-      <section id="tab-part" class="tab">
-        <fieldset class="fs">
-          <legend>Ajouter un participant</legend>
-          <div class="row">
-            <div>
-              <label>Nom</label>
-              <input id="partNom" type="text" placeholder="Collège Jean Moulin">
-            </div>
-            <div>
-              <label>Lat / Lon</label>
-              <div class="row">
-                <input id="partLat" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="lat">
-                <input id="partLon" type="number" inputmode="decimal" autocomplete="off" step="0.000001" placeholder="lon">
-              </div>
-            </div>
-          </div>
-          <div class="row">
-            <div>
-              <label>Type</label>
-              <select id="partType">
-                <option value="consumer">Consommateur</option>
-                <option value="producer">Producteur</option>
-              </select>
-            </div>
-            <div class="align-end">
-              <button id="btnAddPart" class="primary">Ajouter</button>
-            </div>
-          </div>
-        </fieldset>
-
-        <fieldset class="fs">
-          <legend>Import / Export</legend>
-          <div class="row">
-            <div>
-              <label>Importer CSV ; Nom;Lat;Lon;consumer|producer</label>
-              <input id="fileCsv" type="file" accept=".csv,text/csv">
-            </div>
-            <div class="align-end">
-              <button id="btnImportCsv">Importer</button>
-              <button id="btnExportCsv" class="ghost">Exporter</button>
-            </div>
-          </div>
-        </fieldset>
-
-        <div id="listParts" class="list"></div>
-      </section>
-
-      <!-- TAB : PROJET -->
-      <section id="tab-projet" class="tab">
-        <fieldset class="fs">
-          <legend>Dossier</legend>
-          <div class="row">
-            <div>
-              <label>Nom du dossier</label>
-              <input id="projectName" type="text" placeholder="Centrale — ACC Isère Nord">
-            </div>
-            <div class="align-end">
-              <button id="btnCopyLink" class="ghost">Copier lien dossier</button>
-            </div>
-          </div>
-        </fieldset>
-
-        <div class="row">
-          <button id="btnSaveLocal" class="primary">Enregistrer (local)</button>
-          <div class="align-end">
-            <button id="btnLoadLocal">Charger</button>
-            <button id="btnDeleteLocal" class="danger">Supprimer</button>
-          </div>
-        </div>
-      </section>
-    </aside>
-
-    <!-- CARTE -->
-    <section class="panel map-wrap">
-      <div class="map-sticky">
-        <div id="map"></div>
-        <div class="fab" id="fabOptions" aria-label="Options">☰</div>
-
-        <!-- Barre d’actions mobile -->
-        <div class="mobile-toolbar" id="mobileToolbar">
-          <button id="mtLocate" title="Me localiser">📍</button>
-          <button id="mtScan" title="Scanner prospects">🔎</button>
-          <div class="mt-chipset">
-            <button class="chip" data-d="2">2</button>
-            <button class="chip" data-d="10">10</button>
-            <button class="chip" data-d="20">20</button>
-          </div>
-          <button id="mtOptions" title="Options">☰</button>
-        </div>
-      </div>
-    </section>
+  <!-- Carte plein écran -->
+  <main class="map-stage" role="main" aria-label="Carte ACC">
+    <div id="map" class="map"></div>
   </main>
 
-  <!-- Fiche prospect -->
-  <aside id="prospectPanel" class="sidecard">
-    <header>
-      <div>
-        <h3 id="pp-title">Prospect</h3>
-        <div id="pp-sub" class="muted small">—</div>
-      </div>
-      <button id="pp-close" class="ghost">✕</button>
+  <!-- Barre fixe (toujours visible, 4 éléments max) -->
+  <nav class="btmbar" role="navigation" aria-label="Actions terrain">
+    <!-- 1) Producteur -->
+    <button id="btnProducer" class="btm-btn" aria-haspopup="dialog" aria-controls="sheetProducer">
+      <span>Prod.</span>
+    </button>
+
+    <!-- 2) Diamètre (2 | 10 | 20) -->
+    <div class="btm-chipset" id="chipDiameter" role="group" aria-label="Diamètre ACC">
+      <button class="chip active" data-d="2"  aria-pressed="true">2</button>
+      <button class="chip"        data-d="10" aria-pressed="false">10</button>
+      <button class="chip"        data-d="20" aria-pressed="false">20</button>
+    </div>
+
+    <!-- 3) Participants -->
+    <button id="btnParticipants" class="btm-btn" aria-haspopup="dialog" aria-controls="sheetParticipants">
+      <span>Participants</span>
+    </button>
+
+    <!-- 4) Conformité (badge résumé) -->
+    <div class="btm-badge">
+      <span id="badgeCompliance" aria-live="polite">—</span>
+    </div>
+  </nav>
+
+  <!-- ===== Sheet Producteur ===== -->
+  <aside id="sheetProducer" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sp-title" aria-hidden="true">
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="sp-title">Producteur</h2>
+      <button class="sheet-close" data-close="#sheetProducer" aria-label="Fermer">✕</button>
     </header>
-    <section id="pp-body"></section>
-    <footer class="actions">
-      <button id="pp-add" class="primary">Ajouter au projet</button>
-      <button id="pp-sim">Simuler</button>
-      <button id="pp-route" class="ghost">Itinéraire</button>
-    </footer>
+
+    <section class="sheet-body">
+      <!-- Adresse BAN -->
+      <div class="group">
+        <label for="addr" class="lbl">Adresse (BAN)</label>
+        <div class="row">
+          <input id="addr" type="text" inputmode="text" autocomplete="street-address"
+                 placeholder="10 rue de la République, 38000 Grenoble">
+          <button id="btnGeocode" class="btn primary">Géocoder</button>
+        </div>
+      </div>
+
+      <!-- Adresse complète (lecture seule) -->
+      <div class="group">
+        <label for="addrFull" class="lbl">Adresse postale complète</label>
+        <input id="addrFull" type="text" readonly placeholder="—">
+      </div>
+
+      <!-- Coordonnées -->
+      <div class="group">
+        <div class="row">
+          <div>
+            <label class="lbl" for="prodLat">Latitude</label>
+            <input id="prodLat" type="number" inputmode="decimal" step="0.000001" placeholder="45.191000">
+          </div>
+          <div>
+            <label class="lbl" for="prodLon">Longitude</label>
+            <input id="prodLon" type="number" inputmode="decimal" step="0.000001" placeholder="5.684000">
+          </div>
+        </div>
+        <div class="row">
+          <button id="btnSetProducerFromInputs" class="btn primary">Définir (coord.)</button>
+          <button id="btnLocate" class="btn">📍 Me localiser</button>
+          <button id="btnTapSetProducer" class="btn">Poser sur carte (1-tap)</button>
+        </div>
+      </div>
+
+      <div class="row right">
+        <button id="btnClearProducer" class="btn danger">Supprimer le producteur</button>
+      </div>
+    </section>
   </aside>
 
+  <!-- ===== Sheet Participants ===== -->
+  <aside id="sheetParticipants" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sa-title" aria-hidden="true">
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="sa-title">Participants</h2>
+      <button class="sheet-close" data-close="#sheetParticipants" aria-label="Fermer">✕</button>
+    </header>
+
+    <section class="sheet-body">
+      <!-- Ajout rapide par coordonnées -->
+      <div class="group">
+        <div class="row">
+          <div>
+            <label class="lbl" for="partNom">Nom</label>
+            <input id="partNom" type="text" placeholder="Collège Jean Moulin">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label class="lbl" for="partLat">Latitude</label>
+            <input id="partLat" type="number" inputmode="decimal" step="0.000001" placeholder="lat">
+          </div>
+          <div>
+            <label class="lbl" for="partLon">Longitude</label>
+            <input id="partLon" type="number" inputmode="decimal" step="0.000001" placeholder="lon">
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label class="lbl" for="partType">Type</label>
+            <select id="partType">
+              <option value="consumer">Consommateur</option>
+              <option value="producer">Producteur (secondaire)</option>
+            </select>
+          </div>
+          <div class="right">
+            <button id="btnAddPart" class="btn primary">Ajouter</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Mode ajout sur carte (1-tap) -->
+      <div class="group">
+        <button id="btnAddOnMap" class="btn">Ajouter sur la carte (1-tap)</button>
+      </div>
+
+      <!-- Import / Export minimal -->
+      <div class="group">
+        <label class="lbl">Import CSV (Nom;Lat;Lon;Type)</label>
+        <div class="row">
+          <input id="fileCsv" type="file" accept=".csv,text/csv">
+          <button id="btnImportCsv" class="btn">Importer</button>
+          <button id="btnExportCsv" class="btn">Exporter</button>
+        </div>
+      </div>
+
+      <!-- Liste participants -->
+      <div id="listParts" class="list" aria-live="polite"></div>
+    </section>
+  </aside>
+
+  <!-- Script applicatif -->
   <script src="./app.js"></script>
 </body>
 </html>
