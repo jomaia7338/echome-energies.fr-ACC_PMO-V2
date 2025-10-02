@@ -53,7 +53,7 @@ function haversineMeters(a,b){
 }
 const distKm = (a,b)=>haversineMeters(a,b)/1000;
 
-// Validation coordonnées (anti (0,0) & NaN)
+// Validation coordonnées
 function isValidLatLon(lat, lon){
   return Number.isFinite(lat) && Number.isFinite(lon)
     && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
@@ -61,7 +61,7 @@ function isValidLatLon(lat, lon){
 }
 
 // ================== App state ==================
-const STORAGE_NS = 'echome-acc-mvp';
+const STORAGE_NS = 'echome-acc-mvp-epci';
 const STORAGE_LAST = `${STORAGE_NS}:lastProjectId`;
 const projectKey = (id) => `${STORAGE_NS}:project:${id}`;
 const newId = () => (crypto?.randomUUID?.() || String(Date.now()));
@@ -72,30 +72,35 @@ const app = {
   projectId:null,
   projectName:'',
 
-  distMaxKm: 2,
-  producteur: null,         // {lat, lon}
-  participants: [],         // [{id, nom, lat, lon, type}]
+  distMaxKm: 2,         // D = 2/10/20 (mode standard)
+  producteur: null,     // {lat, lon}
+  participants: [],     // [{id, nom, lat, lon, type}]
 
-  // modes temporaires "1-tap"
-  mode: null,               // 'set-producer' | 'add-part' | null
+  mode: null,           // 'set-producer' | 'add-part' | null
+
+  epci:{
+    enabled:false,
+    policy:'public',    // 'public' | 'any'
+    geojson:null,
+    layer:null
+  },
 
   layers:{
-    producer: null,         // L.marker
+    producer: null,
     parts: L.layerGroup(),
-    worstLine: null,
-    worstLabel: null,
-    perimeterGuide: null
+    worstLine: null, worstLabel: null,
+    legalDisk: null,
+    epciLayer: null
   }
 };
 
-// ================== Map setup ==================
+// ================== Map ==================
 function setupMap(){
   app.map = L.map('map', { zoomControl:true }).setView([45.191, 5.684], 12);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OSM' }).addTo(app.map);
   L.control.scale({ position:'topleft', imperial:false, maxWidth:160 }).addTo(app.map);
   app.layers.parts.addTo(app.map);
 
-  // Clic carte (modes 1-tap)
   app.map.on('click', async (e)=>{
     if(app.mode === 'set-producer'){
       setProducer({ lat:e.latlng.lat, lon:e.latlng.lng }, { reverse:true });
@@ -110,16 +115,12 @@ function setupMap(){
     }
   });
 
-  // Appui long carte = ajouter un consommateur (terrain)
-  enableLongPressAddOnMap();
-
-  // Confort tactile
+  enableLongPressAddOnMap(); // appui long carte = ajouter un consommateur
   app.map.scrollWheelZoom.disable();
   app.map.touchZoom.enable();
   app.map.doubleClickZoom.enable();
 }
 
-// Appui long carte → ajoute un consommateur
 function enableLongPressAddOnMap(){
   let t=null, started=false, startPt=null;
   app.map.on('touchstart', (e)=>{
@@ -141,19 +142,17 @@ function enableLongPressAddOnMap(){
   app.map.on('touchend', ()=>{ started=false; if(t) clearTimeout(t); });
 }
 
-// ================== Sheets (open/close) ==================
+// ================== Sheets ==================
 function openSheet(id){ const el=$(id); if(!el) return; el.classList.add('open'); el.setAttribute('aria-hidden','false'); }
 function closeSheet(id){ const el=$(id); if(!el) return; el.classList.remove('open'); el.setAttribute('aria-hidden','true'); }
 
 // ================== Producer ==================
 function setProducer({lat, lon}, opts={}){
   if(!isValidLatLon(lat, lon)){ showError('Coordonnées producteur invalides'); return; }
-
   app.producteur = { lat, lon };
   if($('prodLat')) $('prodLat').value = lat.toFixed(6);
   if($('prodLon')) $('prodLon').value = lon.toFixed(6);
 
-  // Marqueur dédié
   if(!app.layers.producer){
     app.layers.producer = L.marker([lat,lon], {
       draggable:true,
@@ -174,20 +173,17 @@ function setProducer({lat, lon}, opts={}){
     }
   })();
 
-  drawPerimeterGuide();
   afterModelChange();
 }
 function clearProducer(){
   app.producteur = null;
   if(app.layers.producer){ app.map.removeLayer(app.layers.producer); app.layers.producer = null; }
   if($('addrFull')) $('addrFull').value = '';
-  if(app.layers.perimeterGuide){ app.map.removeLayer(app.layers.perimeterGuide); app.layers.perimeterGuide = null; }
   afterModelChange();
 }
 
 // ================== Participants ==================
 function bindMarkerDeletion(marker, payload){
-  // Popup "Supprimer"
   const html = `<div style="min-width:160px">
     <b>${payload.nom || 'Participant'}</b><br>
     ${payload.type || 'consumer'}<br>
@@ -199,8 +195,6 @@ function bindMarkerDeletion(marker, payload){
     const btn = document.getElementById(`del-${payload.id}`);
     if(btn) btn.onclick = ()=> { marker.closePopup(); removeParticipant(payload.id); setStatus('Participant supprimé'); };
   });
-
-  // Appui long (mobile) = confirmation suppression
   let t=null, pressed=false;
   marker.on('touchstart', ()=>{
     pressed=true;
@@ -211,7 +205,6 @@ function bindMarkerDeletion(marker, payload){
   });
   marker.on('touchend', ()=>{ pressed=false; if(t) clearTimeout(t); });
 }
-
 function addParticipant(p){
   if(!isValidLatLon(p.lat, p.lon)){ showError('Coordonnées participant invalides'); return; }
   app.participants.push(p);
@@ -229,7 +222,6 @@ function redrawParticipants(){
       .addTo(app.layers.parts);
     bindMarkerDeletion(marker, p);
   });
-  // liste
   const wrap = $('listParts'); if(wrap){ wrap.innerHTML='';
     app.participants.forEach(p=>{
       const div = document.createElement('div'); div.className='part';
@@ -240,25 +232,64 @@ function redrawParticipants(){
   }
 }
 
-// ================== Périmètre guide (rayon = D/2) ==================
-function drawPerimeterGuide(){
-  if(app.layers.perimeterGuide){ app.map.removeLayer(app.layers.perimeterGuide); app.layers.perimeterGuide = null; }
-  if(!app.producteur || !isValidLatLon(app.producteur.lat, app.producteur.lon)) return;
-
-  const radiusMeters = (app.distMaxKm/2) * 1000; // rayon = D/2
-  app.layers.perimeterGuide = L.circle([app.producteur.lat, app.producteur.lon], {
-    radius: radiusMeters,
-    color: '#6e5bfd',
-    weight: 3,
-    opacity: 1,
-    fillOpacity: 0.07,
-    fillColor: '#6e5bfd',
-    dashArray: '8,6'
-  }).addTo(app.map);
-  app.layers.perimeterGuide.bringToFront?.();
+// ================== SEC (Smallest Enclosing Circle, centre libre) ==================
+function circleFrom2(a,b){
+  const cx = (a.lon + b.lon)/2, cy = (a.lat + b.lat)/2;
+  const r = distKm(a,b)/2;
+  return { c:{lat:cy, lon:cx}, rKm:r };
+}
+function circleFrom3(a,b,c){
+  const ax=a.lon, ay=a.lat, bx=b.lon, by=b.lat, cx=c.lon, cy=c.lat;
+  const d = 2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
+  if (Math.abs(d) < 1e-12) return null;
+  const ux = ((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/d;
+  const uy = ((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/d;
+  const center = { lon:ux, lat:uy };
+  const r = Math.max(distKm(center,a), distKm(center,b), distKm(center,c));
+  return { c:center, rKm:r };
+}
+function isIn(circle, p){ return distKm(circle.c, p) <= circle.rKm + 1e-6; }
+function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
+function secWelzl(P, R=[]){
+  if(P.length===0 || R.length===3){
+    if(R.length===0) return null;
+    if(R.length===1) return { c:R[0], rKm:0 };
+    if(R.length===2) return circleFrom2(R[0], R[1]);
+    return circleFrom3(R[0], R[1], R[2]);
+  }
+  const p = P.pop();
+  const D = secWelzl(P, R);
+  if(D && isIn(D, p)) return D;
+  return secWelzl(P, R.concat([p]));
+}
+function smallestEnclosingCircle(points){
+  if(points.length===0) return null;
+  const copy = points.map(p=>({lat:p.lat, lon:p.lon}));
+  shuffle(copy);
+  return secWelzl(copy, []);
 }
 
-// ================== Conformité (pire paire) ==================
+// ================== Overlays : disque légal & pire paire ==================
+function clearLegalDisk(){
+  if(app.layers.legalDisk){ app.map.removeLayer(app.layers.legalDisk); app.layers.legalDisk = null; }
+}
+function drawLegalDisk(){
+  clearLegalDisk();
+  const pts=[]; if(app.producteur) pts.push(app.producteur);
+  app.participants.forEach(p=>pts.push(p));
+  if(pts.length<1) return;
+
+  const disk = smallestEnclosingCircle(pts);
+  if(!disk) return;
+  const color = (disk.rKm*2 <= app.distMaxKm || app.epci.enabled) ? '#2ecc71' : '#e67e22'; // vert si conforme en standard; en EPCI le disque est informatif
+  app.layers.legalDisk = L.circle([disk.c.lat, disk.c.lon], {
+    radius: disk.rKm*1000,
+    color, weight: 3, opacity: 0.9,
+    fillOpacity: 0.06, fillColor: color,
+    dashArray: '10,6'
+  }).addTo(app.map);
+}
+
 function worstPair(points){
   let worst={d:0,a:null,b:null};
   for(let i=0;i<points.length;i++){
@@ -281,13 +312,80 @@ function drawWorstOverlay(w, D){
   const mid = { lat:(w.a.lat+w.b.lat)/2, lon:(w.a.lon+w.b.lon)/2 };
   app.layers.worstLabel = L.marker([mid.lat, mid.lon], { icon: L.divIcon({ className:'maxpair-label', html:`${w.d.toFixed(2)} km / ≤ ${D} km` }) }).addTo(app.map);
 }
+
+// ================== EPCI : polygone & conformité ==================
+function clearEPCILayer(){ if(app.epci.layer){ app.map.removeLayer(app.epci.layer); app.epci.layer = null; } }
+function drawEPCILayer(){
+  clearEPCILayer();
+  if(!app.epci.enabled || !app.epci.geojson) return;
+  app.epci.layer = L.geoJSON(app.epci.geojson, {
+    style: ()=>({ color:'#00b3ff', weight:2, fillColor:'#00b3ff', fillOpacity:0.07 })
+  }).addTo(app.map);
+  try{ app.map.fitBounds(app.epci.layer.getBounds(), { maxZoom: 12 }); }catch{}
+}
+
+function coordsOf(feature){
+  const g = feature.type==='Feature' ? feature.geometry : feature;
+  if(!g) return [];
+  if(g.type==='Polygon')      return [ g.coordinates[0] ];
+  if(g.type==='MultiPolygon') return g.coordinates.map(poly => poly[0]);
+  return [];
+}
+function pointInRing(lon, lat, ring){
+  let inside=false;
+  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
+    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
+    const intersect = ((yi>lat)!=(yj>lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi + 1e-12) + xi);
+    if(intersect) inside = !inside;
+  }
+  return inside;
+}
+function pointInFeature(p, feature){
+  const polys = coordsOf(feature);
+  if(polys.length===0) return false;
+  for(const ring of polys){ if(pointInRing(p.lon, p.lat, ring)) return true; }
+  return false;
+}
+function isParticipantAllowedInEPCI(p){
+  if(app.epci.policy==='any') return true;
+  const name = (p.nom||'').toLowerCase();
+  const hints = ['mairie','commune','ecole','école','collège','college','lycée','hopital','hôpital','chu','sdis','sis','prefecture','préfecture','epci','agglo','metropole','métropole','departement','département','region','région','universite','université','sem'];
+  return hints.some(h => name.includes(h));
+}
+function complianceEPCI(pts){
+  const feat = app.epci.geojson?.type==='Feature' ? app.epci.geojson : (app.epci.geojson?.features?.[0] || null);
+  if(!feat) return { ok:false, reason:'polygone manquant' };
+  const allInside = pts.every(p => pointInFeature(p, feat));
+  const typesOK   = pts.every(p => isParticipantAllowedInEPCI(p));
+  return { ok: allInside && typesOK, allInside, typesOK };
+}
+
+// ================== Conformité (modes) ==================
 function updateCompliance(){
   const pts = [];
-  if(app.producteur) pts.push(app.producteur);
+  if(app.producteur) pts.push({ ...app.producteur, nom:'Producteur', type:'producer' });
   app.participants.forEach(p=>pts.push(p));
 
+  if(pts.length < 1){
+    clearWorstOverlay(); clearLegalDisk();
+    $('badgeCompliance').textContent = '—';
+    setStatus(app.epci.enabled ? 'Mode EPCI — charge un polygone' : `D = ${app.distMaxKm} km — poser des points`);
+    return;
+  }
+
+  if(app.epci.enabled){
+    const res = complianceEPCI(pts);
+    $('badgeCompliance').textContent = res.ok ? '✔︎' : '✖︎';
+    setStatus(`EPCI — ${res.ok?'conforme':'non conforme'} (${res.allInside?'inclus':'hors zone'}; ${res.typesOK?'types OK':'types non autorisés'})`);
+    // Pire paire (info) + disque (visuel informatif)
+    if(pts.length>=2){ drawWorstOverlay(worstPair(pts), app.distMaxKm); } else { clearWorstOverlay(); }
+    drawLegalDisk();
+    return;
+  }
+
+  // Mode standard
   if(pts.length < 2){
-    clearWorstOverlay();
+    clearWorstOverlay(); drawLegalDisk();
     $('badgeCompliance').textContent = '—';
     setStatus(`D = ${app.distMaxKm} km — poser des points`);
     return;
@@ -297,14 +395,16 @@ function updateCompliance(){
   $('badgeCompliance').textContent = ok ? '✔︎' : '✖︎';
   setStatus(`D = ${app.distMaxKm} km — pire paire ${w.d.toFixed(2)} km`);
   drawWorstOverlay(w, app.distMaxKm);
+  drawLegalDisk();
 }
 
 // ================== Persistence ==================
 function getPayload(){
-  return { __v:1, savedAt:new Date().toISOString(), state:{
+  return { __v:2, savedAt:new Date().toISOString(), state:{
     distMaxKm: app.distMaxKm,
     producteur: app.producteur,
-    participants: app.participants
+    participants: app.participants,
+    epci: { enabled:app.epci.enabled, policy:app.epci.policy, geojson:app.epci.geojson }
   }};
 }
 function saveProject(){
@@ -324,44 +424,48 @@ function applyPayload(payload){
   app.distMaxKm = s.distMaxKm ?? 2;
   app.producteur = s.producteur || null;
   app.participants = Array.isArray(s.participants) ? s.participants : [];
+  app.epci.enabled = !!s?.epci?.enabled;
+  app.epci.policy  = s?.epci?.policy || 'public';
+  app.epci.geojson = s?.epci?.geojson || null;
 
-  // sync chips diamètre
+  // sync chips
   document.querySelectorAll('#chipDiameter .chip').forEach(b=>{
-    const d = Number(b.getAttribute('data-d'));
-    const active = d === app.distMaxKm;
-    b.classList.toggle('active', active);
-    b.setAttribute('aria-pressed', active ? 'true':'false');
+    const d = Number(b.getAttribute('data-d')); const active = d === app.distMaxKm;
+    b.classList.toggle('active', active); b.setAttribute('aria-pressed', active ? 'true':'false');
   });
+  setChipsDisabled(app.epci.enabled);
 
-  // producer marker + inputs
   if(app.producteur && isValidLatLon(app.producteur.lat, app.producteur.lon)){
     setProducer(app.producteur, { reverse:true });
     app.map.setView([app.producteur.lat, app.producteur.lon], 13);
   }else{
     clearProducer();
   }
-  afterModelChange(); // (redraw + compliance + save)
+  afterModelChange();
 }
 
-// ================== Glue (UI wiring) ==================
+// ================== UI wiring ==================
 function highlightMode(){
   if(app.mode==='set-producer') setStatus('Mode: poser le producteur (tap)');
   else if(app.mode==='add-part') setStatus('Mode: ajouter un participant (tap)');
   else setStatus('Prêt');
 }
-
-// Bottom sheets open/close
-function wireSheets(){
-  // Producer
-  $('btnProducer')?.addEventListener('click', ()=> openSheet('sheetProducer'));
-  document.querySelectorAll('[data-close="#sheetProducer"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetProducer')));
-
-  // Participants
-  $('btnParticipants')?.addEventListener('click', ()=> openSheet('sheetParticipants'));
-  document.querySelectorAll('[data-close="#sheetParticipants"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetParticipants')));
+function setChipsDisabled(disabled){
+  document.querySelectorAll('#chipDiameter .chip').forEach(b=>{
+    b.disabled = !!disabled;
+    b.style.opacity = disabled? .4 : 1;
+  });
 }
 
-// Producer actions
+function wireSheets(){
+  $('btnProducer')?.addEventListener('click', ()=> openSheet('sheetProducer'));
+  document.querySelectorAll('[data-close="#sheetProducer"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetProducer')));
+  $('btnParticipants')?.addEventListener('click', ()=> openSheet('sheetParticipants'));
+  document.querySelectorAll('[data-close="#sheetParticipants"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetParticipants')));
+  $('btnEPCI')?.addEventListener('click', ()=> openSheet('sheetEPCI'));
+  document.querySelectorAll('[data-close="#sheetEPCI"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetEPCI')));
+}
+
 function wireProducer(){
   $('btnGeocode')?.addEventListener('click', async ()=>{
     const q = $('addr')?.value?.trim(); if(!q) return showError('Saisir une adresse');
@@ -370,7 +474,6 @@ function wireProducer(){
     setProducer({ lat:r.lat, lon:r.lon }); $('addrFull') && ( $('addrFull').value = r.label || q );
     app.map.setView([r.lat, r.lon], 14); setStatus('Adresse localisée');
   });
-
   $('btnLocate')?.addEventListener('click', ()=>{
     if(!navigator.geolocation) return showError('Géolocalisation non supportée');
     setStatus('Géolocalisation…');
@@ -383,22 +486,16 @@ function wireProducer(){
       showError(`GPS KO: ${err.message||'inconnu'}`); setStatus('Géolocalisation indisponible');
     }, { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
   });
-
-  $('btnTapSetProducer')?.addEventListener('click', ()=>{
-    app.mode = 'set-producer'; closeSheet('sheetProducer'); highlightMode();
-  });
-
+  $('btnTapSetProducer')?.addEventListener('click', ()=>{ app.mode = 'set-producer'; closeSheet('sheetProducer'); highlightMode(); });
   $('btnSetProducerFromInputs')?.addEventListener('click', ()=>{
     const la = Number($('prodLat')?.value), lo = Number($('prodLon')?.value);
     if(!isValidLatLon(la, lo)) return showError('Coordonnées producteur invalides');
     setProducer({ lat:la, lon:lo }, { reverse:true }); app.map.setView([la, lo], 14);
     setStatus('Producteur défini (coord.)');
   });
-
   $('btnClearProducer')?.addEventListener('click', ()=> { clearProducer(); setStatus('Producteur supprimé'); });
 }
 
-// Participants actions
 function wireParticipants(){
   $('btnAddPart')?.addEventListener('click', ()=>{
     const nom = $('partNom')?.value?.trim() || `Consommateur ${app.participants.length+1}`;
@@ -409,10 +506,7 @@ function wireParticipants(){
     $('partNom').value=''; $('partLat').value=''; $('partLon').value='';
     setStatus('Participant ajouté');
   });
-
   $('btnAddOnMap')?.addEventListener('click', ()=>{ app.mode='add-part'; closeSheet('sheetParticipants'); highlightMode(); });
-
-  // Import CSV
   $('btnImportCsv')?.addEventListener('click', async ()=>{
     const f = $('fileCsv')?.files?.[0]; if(!f) return showError('Aucun fichier CSV');
     const text = await f.text(); const rows = text.trim().split(/\r?\n/); const out=[];
@@ -425,8 +519,6 @@ function wireParticipants(){
     out.forEach(addParticipant);
     setStatus(`Importé ${out.length} participants`);
   });
-
-  // Export CSV
   $('btnExportCsv')?.addEventListener('click', ()=>{
     const rows = [['Nom','Lat','Lon','Type'], ...app.participants.map(p=>[p.nom,p.lat,p.lon,p.type])];
     const csv = rows.map(r=>r.join(';')).join('\n');
@@ -437,24 +529,54 @@ function wireParticipants(){
   });
 }
 
-// Diamètre chips
 function wireDiameterChips(){
   document.querySelectorAll('#chipDiameter .chip').forEach(btn=>{
     btn.addEventListener('click', ()=>{
+      if(app.epci.enabled) return; // chips inopérants en EPCI
       document.querySelectorAll('#chipDiameter .chip').forEach(b=>{ b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
       btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
       app.distMaxKm = Number(btn.getAttribute('data-d')) || 2;
-      drawPerimeterGuide();
       onProjectChanged();
     });
   });
 }
 
+function wireEPCI(){
+  $('btnEPCIOn')?.addEventListener('click', ()=>{
+    app.epci.enabled = true; setChipsDisabled(true);
+    drawEPCILayer(); updateCompliance(); closeSheet('sheetEPCI');
+    setStatus('Mode EPCI activé');
+  });
+  $('btnEPCIOff')?.addEventListener('click', ()=>{
+    app.epci.enabled = false; setChipsDisabled(false);
+    clearEPCILayer(); updateCompliance(); closeSheet('sheetEPCI');
+    setStatus('Mode EPCI désactivé');
+  });
+  $('epciPolicy')?.addEventListener('change', (e)=>{
+    app.epci.policy = e.target.value || 'public';
+    updateCompliance();
+  });
+  $('btnLoadEPCI')?.addEventListener('click', async ()=>{
+    const f = $('fileEPCI')?.files?.[0]; if(!f) return showError('Aucun fichier GeoJSON EPCI');
+    try{
+      const text = await f.text(); const gj = JSON.parse(text);
+      app.epci.geojson = gj;
+      drawEPCILayer(); updateCompliance();
+      setStatus('Polygone EPCI chargé');
+    }catch(e){ showError('GeoJSON invalide'); }
+  });
+  $('btnClearEPCI')?.addEventListener('click', ()=>{
+    app.epci.geojson = null; clearEPCILayer(); updateCompliance(); setStatus('Polygone EPCI vidé');
+  });
+
+  $('btnEPCI')?.addEventListener('click', ()=> openSheet('sheetEPCI'));
+  document.querySelectorAll('[data-close="#sheetEPCI"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetEPCI')));
+}
+
 // ================== Reactions ==================
 function afterModelChange(){
   redrawParticipants();
-  updateCompliance();
-  drawPerimeterGuide();
+  updateCompliance();   // pire paire (juridique) + disque SEC + EPCI si actif
   saveProject();
 }
 function onProjectChanged(){
@@ -467,27 +589,18 @@ function onProjectChanged(){
   try{
     setStatus('Initialisation…');
     setupMap();
-    // Wire UI
-    (function wireSheets(){
-      // Producer
-      $('btnProducer')?.addEventListener('click', ()=> openSheet('sheetProducer'));
-      document.querySelectorAll('[data-close="#sheetProducer"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetProducer')));
-      // Participants
-      $('btnParticipants')?.addEventListener('click', ()=> openSheet('sheetParticipants'));
-      document.querySelectorAll('[data-close="#sheetParticipants"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetParticipants')));
-    })();
+    wireSheets();
     wireProducer();
     wireParticipants();
     wireDiameterChips();
+    wireEPCI();
 
-    // Charger projet si présent
     const fromUrl = new URLSearchParams(location.search).get('project')
                  || localStorage.getItem(STORAGE_LAST);
     if(fromUrl){
       const payload = loadProjectById(fromUrl);
       if(payload){ app.projectId = fromUrl; applyPayload(payload); setStatus('Projet chargé'); return; }
     }
-    // Nouveau projet
     app.projectId = newId(); saveProject();
     setStatus('Prêt');
   }catch(e){
