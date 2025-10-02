@@ -2,9 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>Echome Énergies — ACC Terrain (MVP)</title>
-
-  <!-- Mobile / PWA basics -->
+  <title>Echome Énergies — ACC Terrain (MVP + EPCI)</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#11162a">
   <meta name="format-detection" content="telephone=no">
@@ -19,25 +17,21 @@
           integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
           crossorigin="anonymous"></script>
 
-  <!-- Styles -->
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <!-- Bande supérieure minimaliste (statut) -->
   <header class="topbar">
     <div class="brand">Echome Énergies</div>
     <div id="status" class="status">Prêt</div>
   </header>
 
-  <!-- Zone d'erreurs (discrète, déroulante) -->
   <div id="error-box" class="error-box hidden" aria-live="polite"></div>
 
-  <!-- Carte plein écran -->
   <main class="map-stage" role="main" aria-label="Carte ACC">
     <div id="map" class="map"></div>
   </main>
 
-  <!-- Barre fixe (toujours visible, 4 éléments max) -->
+  <!-- Barre fixe (toujours visible) -->
   <nav class="btmbar" role="navigation" aria-label="Actions terrain">
     <!-- 1) Producteur -->
     <button id="btnProducer" class="btm-btn" aria-haspopup="dialog" aria-controls="sheetProducer">
@@ -56,7 +50,12 @@
       <span>Participants</span>
     </button>
 
-    <!-- 4) Conformité (badge résumé) -->
+    <!-- 3bis) EPCI -->
+    <button id="btnEPCI" class="btm-btn" aria-haspopup="dialog" aria-controls="sheetEPCI">
+      <span>EPCI</span>
+    </button>
+
+    <!-- 4) Conformité -->
     <div class="btm-badge">
       <span id="badgeCompliance" aria-live="polite">—</span>
     </div>
@@ -71,7 +70,6 @@
     </header>
 
     <section class="sheet-body">
-      <!-- Adresse BAN -->
       <div class="group">
         <label for="addr" class="lbl">Adresse (BAN)</label>
         <div class="row">
@@ -81,13 +79,11 @@
         </div>
       </div>
 
-      <!-- Adresse complète (lecture seule) -->
       <div class="group">
         <label for="addrFull" class="lbl">Adresse postale complète</label>
         <input id="addrFull" type="text" readonly placeholder="—">
       </div>
 
-      <!-- Coordonnées -->
       <div class="group">
         <div class="row">
           <div>
@@ -121,7 +117,6 @@
     </header>
 
     <section class="sheet-body">
-      <!-- Ajout rapide par coordonnées -->
       <div class="group">
         <div class="row">
           <div>
@@ -153,12 +148,10 @@
         </div>
       </div>
 
-      <!-- Mode ajout sur carte (1-tap) -->
       <div class="group">
         <button id="btnAddOnMap" class="btn">Ajouter sur la carte (1-tap)</button>
       </div>
 
-      <!-- Import / Export minimal -->
       <div class="group">
         <label class="lbl">Import CSV (Nom;Lat;Lon;Type)</label>
         <div class="row">
@@ -168,12 +161,51 @@
         </div>
       </div>
 
-      <!-- Liste participants -->
       <div id="listParts" class="list" aria-live="polite"></div>
     </section>
   </aside>
 
-  <!-- Script applicatif -->
+  <!-- ===== Sheet EPCI ===== -->
+  <aside id="sheetEPCI" class="sheet" role="dialog" aria-modal="true" aria-labelledby="se-title" aria-hidden="true">
+    <div class="sheet-grabber" aria-hidden="true"></div>
+    <header class="sheet-head">
+      <h2 id="se-title">Mode EPCI (dérogatoire)</h2>
+      <button class="sheet-close" data-close="#sheetEPCI" aria-label="Fermer">✕</button>
+    </header>
+
+    <section class="sheet-body">
+      <div class="group">
+        <label class="lbl">Activer le mode EPCI</label>
+        <div class="row">
+          <button id="btnEPCIOn"  class="btn primary">Activer</button>
+          <button id="btnEPCIOff" class="btn">Désactiver</button>
+        </div>
+        <p class="small" style="color:#c6c9d1;margin:.5rem 0 0">
+          En mode EPCI, la conformité se fait par inclusion <b>dans le polygone EPCI</b> et les <b>types autorisés</b>.
+        </p>
+      </div>
+
+      <div class="group">
+        <label class="lbl">Polygone EPCI (GeoJSON Polygon ou MultiPolygon)</label>
+        <div class="row">
+          <input id="fileEPCI" type="file" accept=".geojson,application/geo+json,application/json">
+          <button id="btnLoadEPCI" class="btn">Charger</button>
+          <button id="btnClearEPCI" class="btn danger">Vider</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <label class="lbl">Participants autorisés (mode EPCI)</label>
+        <div class="row">
+          <select id="epciPolicy">
+            <option value="public">Organismes publics / SEM / service public</option>
+            <option value="any">Tous (test)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+  </aside>
+
   <script src="./app.js"></script>
 </body>
 </html>
