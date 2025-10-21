@@ -61,36 +61,32 @@ function isValidLatLon(lat, lon){
 }
 
 // ================== App state ==================
-const STORAGE_NS = 'echome-acc-mvp-epci';
+const STORAGE_NS = 'echome-acc-v15';
 const STORAGE_LAST = `${STORAGE_NS}:lastProjectId`;
 const projectKey = (id) => `${STORAGE_NS}:project:${id}`;
 const newId = () => (crypto?.randomUUID?.() || String(Date.now()));
 
 const app = {
-  __BUILD__: '2025-10-02',
+  __BUILD__: '2025-10-21',
   map:null,
   projectId:null,
-  projectName:'',
 
-  distMaxKm: 2,         // D = 2/10/20 (mode standard)
+  distMaxKm: 2,         // D = 2/10/20
   producteur: null,     // {lat, lon}
   participants: [],     // [{id, nom, lat, lon, type}]
 
+  // modes 1-tap
   mode: null,           // 'set-producer' | 'add-part' | null
 
-  epci:{
-    enabled:false,
-    policy:'public',    // 'public' | 'any'
-    geojson:null,
-    layer:null
-  },
-
+  // Overlays & couches
   layers:{
     producer: null,
     parts: L.layerGroup(),
     worstLine: null, worstLabel: null,
-    legalDisk: null,
-    epciLayer: null
+
+    // Boucle ACC centrée libre (déplaçable)
+    accCircle: null,      // L.circle (rayon = D/2)
+    accCenter: null       // L.marker draggable (centre libre)
   }
 };
 
@@ -101,26 +97,31 @@ function setupMap(){
   L.control.scale({ position:'topleft', imperial:false, maxWidth:160 }).addTo(app.map);
   app.layers.parts.addTo(app.map);
 
-  app.map.on('click', async (e)=>{
+  // Clic (modes)
+  app.map.on('click', (e)=>{
     if(app.mode === 'set-producer'){
       setProducer({ lat:e.latlng.lat, lon:e.latlng.lng }, { reverse:true });
       setStatus('Producteur défini'); app.mode = null; highlightMode();
-      return;
-    }
-    if(app.mode === 'add-part'){
+    } else if(app.mode === 'add-part'){
       const nom = `Consommateur ${app.participants.length+1}`;
       addParticipant({ id:newId(), nom, lat:e.latlng.lat, lon:e.latlng.lng, type:'consumer' });
       setStatus('Participant ajouté'); app.mode = null; highlightMode();
-      return;
     }
   });
 
-  enableLongPressAddOnMap(); // appui long carte = ajouter un consommateur
+  // Appui long carte = ajouter un consommateur (terrain)
+  enableLongPressAddOnMap();
+
+  // Confort tactile
   app.map.scrollWheelZoom.disable();
   app.map.touchZoom.enable();
   app.map.doubleClickZoom.enable();
+
+  // Instancie la boucle ACC (centre libre) au 1er affichage
+  ensureAccCircle();
 }
 
+// Appui long carte → ajoute un consommateur
 function enableLongPressAddOnMap(){
   let t=null, started=false, startPt=null;
   app.map.on('touchstart', (e)=>{
@@ -232,64 +233,51 @@ function redrawParticipants(){
   }
 }
 
-// ================== SEC (Smallest Enclosing Circle, centre libre) ==================
-function circleFrom2(a,b){
-  const cx = (a.lon + b.lon)/2, cy = (a.lat + b.lat)/2;
-  const r = distKm(a,b)/2;
-  return { c:{lat:cy, lon:cx}, rKm:r };
-}
-function circleFrom3(a,b,c){
-  const ax=a.lon, ay=a.lat, bx=b.lon, by=b.lat, cx=c.lon, cy=c.lat;
-  const d = 2*(ax*(by-cy)+bx*(cy-ay)+cx*(ay-by));
-  if (Math.abs(d) < 1e-12) return null;
-  const ux = ((ax*ax+ay*ay)*(by-cy)+(bx*bx+by*by)*(cy-ay)+(cx*cx+cy*cy)*(ay-by))/d;
-  const uy = ((ax*ax+ay*ay)*(cx-bx)+(bx*bx+by*by)*(ax-cx)+(cx*cx+cy*cy)*(bx-ax))/d;
-  const center = { lon:ux, lat:uy };
-  const r = Math.max(distKm(center,a), distKm(center,b), distKm(center,c));
-  return { c:center, rKm:r };
-}
-function isIn(circle, p){ return distKm(circle.c, p) <= circle.rKm + 1e-6; }
-function shuffle(arr){ for(let i=arr.length-1;i>0;i--){ const j=(Math.random()*(i+1))|0; [arr[i],arr[j]]=[arr[j],arr[i]]; } return arr; }
-function secWelzl(P, R=[]){
-  if(P.length===0 || R.length===3){
-    if(R.length===0) return null;
-    if(R.length===1) return { c:R[0], rKm:0 };
-    if(R.length===2) return circleFrom2(R[0], R[1]);
-    return circleFrom3(R[0], R[1], R[2]);
+// ================== Boucle ACC : cercle centre libre ==================
+function ensureAccCircle(){
+  const defaultCenter = app.producteur ? [app.producteur.lat, app.producteur.lon] : app.map.getCenter();
+  const radiusMeters = (app.distMaxKm/2) * 1000; // D/2
+
+  if(!app.layers.accCircle){
+    app.layers.accCircle = L.circle(defaultCenter, {
+      radius: radiusMeters,
+      color: '#6e5bfd',
+      weight: 3, opacity: 1,
+      fillOpacity: 0.06, fillColor: '#6e5bfd',
+      dashArray: '8,6'
+    }).addTo(app.map);
+  }else{
+    app.layers.accCircle.setLatLng(defaultCenter);
+    app.layers.accCircle.setRadius(radiusMeters);
   }
-  const p = P.pop();
-  const D = secWelzl(P, R);
-  if(D && isIn(D, p)) return D;
-  return secWelzl(P, R.concat([p]));
-}
-function smallestEnclosingCircle(points){
-  if(points.length===0) return null;
-  const copy = points.map(p=>({lat:p.lat, lon:p.lon}));
-  shuffle(copy);
-  return secWelzl(copy, []);
+
+  if(!app.layers.accCenter){
+    // marqueur centre (draggable) — centre libre
+    app.layers.accCenter = L.marker(defaultCenter, {
+      draggable:true,
+      title:'Centre de la boucle ACC (déplaçable)',
+      icon: L.divIcon({ className:'acc-center', html:'<div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #6e5bfd;box-shadow:0 0 0 2px rgba(110,91,253,.35)"></div>', iconSize:[14,14], iconAnchor:[7,7] })
+    }).addTo(app.map);
+
+    // Drag du centre → déplace le cercle
+    app.layers.accCenter.on('drag', ()=>{
+      const { lat, lng } = app.layers.accCenter.getLatLng();
+      app.layers.accCircle.setLatLng([lat, lng]);
+    });
+    app.layers.accCenter.on('dragend', ()=> setStatus('Centre de la boucle déplacé'));
+  }else{
+    app.layers.accCenter.setLatLng(defaultCenter);
+  }
 }
 
-// ================== Overlays : disque légal & pire paire ==================
-function clearLegalDisk(){
-  if(app.layers.legalDisk){ app.map.removeLayer(app.layers.legalDisk); app.layers.legalDisk = null; }
-}
-function drawLegalDisk(){
-  clearLegalDisk();
-  const pts=[]; if(app.producteur) pts.push(app.producteur);
-  app.participants.forEach(p=>pts.push(p));
-  if(pts.length<1) return;
-
-  const disk = smallestEnclosingCircle(pts);
-  if(!disk) return;
-  const color = (disk.rKm*2 <= app.distMaxKm || app.epci.enabled) ? '#2ecc71' : '#e67e22'; // vert si conforme en standard; en EPCI le disque est informatif
-  app.layers.legalDisk = L.circle([disk.c.lat, disk.c.lon], {
-    radius: disk.rKm*1000,
-    color, weight: 3, opacity: 0.9,
-    fillOpacity: 0.06, fillColor: color,
-    dashArray: '10,6'
-  }).addTo(app.map);
+// Pour mettre à jour le rayon quand on change D
+function updateAccCircleRadius(){
+  if(!app.layers.accCircle){ ensureAccCircle(); return; }
+  const r = (app.distMaxKm/2) * 1000;
+  app.layers.accCircle.setRadius(r);
 }
 
+// ================== Pire paire (critère juridique) ==================
 function worstPair(points){
   let worst={d:0,a:null,b:null};
   for(let i=0;i<points.length;i++){
@@ -313,79 +301,18 @@ function drawWorstOverlay(w, D){
   app.layers.worstLabel = L.marker([mid.lat, mid.lon], { icon: L.divIcon({ className:'maxpair-label', html:`${w.d.toFixed(2)} km / ≤ ${D} km` }) }).addTo(app.map);
 }
 
-// ================== EPCI : polygone & conformité ==================
-function clearEPCILayer(){ if(app.epci.layer){ app.map.removeLayer(app.epci.layer); app.epci.layer = null; } }
-function drawEPCILayer(){
-  clearEPCILayer();
-  if(!app.epci.enabled || !app.epci.geojson) return;
-  app.epci.layer = L.geoJSON(app.epci.geojson, {
-    style: ()=>({ color:'#00b3ff', weight:2, fillColor:'#00b3ff', fillOpacity:0.07 })
-  }).addTo(app.map);
-  try{ app.map.fitBounds(app.epci.layer.getBounds(), { maxZoom: 12 }); }catch{}
-}
-
-function coordsOf(feature){
-  const g = feature.type==='Feature' ? feature.geometry : feature;
-  if(!g) return [];
-  if(g.type==='Polygon')      return [ g.coordinates[0] ];
-  if(g.type==='MultiPolygon') return g.coordinates.map(poly => poly[0]);
-  return [];
-}
-function pointInRing(lon, lat, ring){
-  let inside=false;
-  for(let i=0,j=ring.length-1;i<ring.length;j=i++){
-    const xi=ring[i][0], yi=ring[i][1], xj=ring[j][0], yj=ring[j][1];
-    const intersect = ((yi>lat)!=(yj>lat)) && (lon < (xj - xi) * (lat - yi) / (yj - yi + 1e-12) + xi);
-    if(intersect) inside = !inside;
-  }
-  return inside;
-}
-function pointInFeature(p, feature){
-  const polys = coordsOf(feature);
-  if(polys.length===0) return false;
-  for(const ring of polys){ if(pointInRing(p.lon, p.lat, ring)) return true; }
-  return false;
-}
-function isParticipantAllowedInEPCI(p){
-  if(app.epci.policy==='any') return true;
-  const name = (p.nom||'').toLowerCase();
-  const hints = ['mairie','commune','ecole','école','collège','college','lycée','hopital','hôpital','chu','sdis','sis','prefecture','préfecture','epci','agglo','metropole','métropole','departement','département','region','région','universite','université','sem'];
-  return hints.some(h => name.includes(h));
-}
-function complianceEPCI(pts){
-  const feat = app.epci.geojson?.type==='Feature' ? app.epci.geojson : (app.epci.geojson?.features?.[0] || null);
-  if(!feat) return { ok:false, reason:'polygone manquant' };
-  const allInside = pts.every(p => pointInFeature(p, feat));
-  const typesOK   = pts.every(p => isParticipantAllowedInEPCI(p));
-  return { ok: allInside && typesOK, allInside, typesOK };
-}
-
-// ================== Conformité (modes) ==================
+// ================== Conformité ==================
 function updateCompliance(){
   const pts = [];
   if(app.producteur) pts.push({ ...app.producteur, nom:'Producteur', type:'producer' });
   app.participants.forEach(p=>pts.push(p));
 
-  if(pts.length < 1){
-    clearWorstOverlay(); clearLegalDisk();
-    $('badgeCompliance').textContent = '—';
-    setStatus(app.epci.enabled ? 'Mode EPCI — charge un polygone' : `D = ${app.distMaxKm} km — poser des points`);
-    return;
-  }
+  // MAJ cercle (au cas où on vient d’ajouter/supprimer)
+  ensureAccCircle();
+  updateAccCircleRadius();
 
-  if(app.epci.enabled){
-    const res = complianceEPCI(pts);
-    $('badgeCompliance').textContent = res.ok ? '✔︎' : '✖︎';
-    setStatus(`EPCI — ${res.ok?'conforme':'non conforme'} (${res.allInside?'inclus':'hors zone'}; ${res.typesOK?'types OK':'types non autorisés'})`);
-    // Pire paire (info) + disque (visuel informatif)
-    if(pts.length>=2){ drawWorstOverlay(worstPair(pts), app.distMaxKm); } else { clearWorstOverlay(); }
-    drawLegalDisk();
-    return;
-  }
-
-  // Mode standard
   if(pts.length < 2){
-    clearWorstOverlay(); drawLegalDisk();
+    clearWorstOverlay();
     $('badgeCompliance').textContent = '—';
     setStatus(`D = ${app.distMaxKm} km — poser des points`);
     return;
@@ -395,16 +322,19 @@ function updateCompliance(){
   $('badgeCompliance').textContent = ok ? '✔︎' : '✖︎';
   setStatus(`D = ${app.distMaxKm} km — pire paire ${w.d.toFixed(2)} km`);
   drawWorstOverlay(w, app.distMaxKm);
-  drawLegalDisk();
 }
 
 // ================== Persistence ==================
 function getPayload(){
-  return { __v:2, savedAt:new Date().toISOString(), state:{
+  // Sauvegarde aussi le centre libre de la boucle
+  const center = app.layers.accCenter ? app.layers.accCenter.getLatLng() : null;
+  const accCenter = center ? { lat:center.lat, lon:center.lng } : null;
+
+  return { __v:3, savedAt:new Date().toISOString(), state:{
     distMaxKm: app.distMaxKm,
     producteur: app.producteur,
     participants: app.participants,
-    epci: { enabled:app.epci.enabled, policy:app.epci.policy, geojson:app.epci.geojson }
+    accCenter
   }};
 }
 function saveProject(){
@@ -424,22 +354,26 @@ function applyPayload(payload){
   app.distMaxKm = s.distMaxKm ?? 2;
   app.producteur = s.producteur || null;
   app.participants = Array.isArray(s.participants) ? s.participants : [];
-  app.epci.enabled = !!s?.epci?.enabled;
-  app.epci.policy  = s?.epci?.policy || 'public';
-  app.epci.geojson = s?.epci?.geojson || null;
 
   // sync chips
   document.querySelectorAll('#chipDiameter .chip').forEach(b=>{
     const d = Number(b.getAttribute('data-d')); const active = d === app.distMaxKm;
     b.classList.toggle('active', active); b.setAttribute('aria-pressed', active ? 'true':'false');
   });
-  setChipsDisabled(app.epci.enabled);
 
+  // Producteur
   if(app.producteur && isValidLatLon(app.producteur.lat, app.producteur.lon)){
     setProducer(app.producteur, { reverse:true });
     app.map.setView([app.producteur.lat, app.producteur.lon], 13);
   }else{
     clearProducer();
+  }
+
+  // Centre boucle ACC (si sauvegardé)
+  ensureAccCircle();
+  if(s.accCenter && isValidLatLon(s.accCenter.lat, s.accCenter.lon)){
+    app.layers.accCenter.setLatLng([s.accCenter.lat, s.accCenter.lon]);
+    app.layers.accCircle.setLatLng([s.accCenter.lat, s.accCenter.lon]);
   }
   afterModelChange();
 }
@@ -450,20 +384,12 @@ function highlightMode(){
   else if(app.mode==='add-part') setStatus('Mode: ajouter un participant (tap)');
   else setStatus('Prêt');
 }
-function setChipsDisabled(disabled){
-  document.querySelectorAll('#chipDiameter .chip').forEach(b=>{
-    b.disabled = !!disabled;
-    b.style.opacity = disabled? .4 : 1;
-  });
-}
 
 function wireSheets(){
   $('btnProducer')?.addEventListener('click', ()=> openSheet('sheetProducer'));
   document.querySelectorAll('[data-close="#sheetProducer"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetProducer')));
   $('btnParticipants')?.addEventListener('click', ()=> openSheet('sheetParticipants'));
   document.querySelectorAll('[data-close="#sheetParticipants"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetParticipants')));
-  $('btnEPCI')?.addEventListener('click', ()=> openSheet('sheetEPCI'));
-  document.querySelectorAll('[data-close="#sheetEPCI"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetEPCI')));
 }
 
 function wireProducer(){
@@ -532,51 +458,19 @@ function wireParticipants(){
 function wireDiameterChips(){
   document.querySelectorAll('#chipDiameter .chip').forEach(btn=>{
     btn.addEventListener('click', ()=>{
-      if(app.epci.enabled) return; // chips inopérants en EPCI
       document.querySelectorAll('#chipDiameter .chip').forEach(b=>{ b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
       btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
       app.distMaxKm = Number(btn.getAttribute('data-d')) || 2;
+      updateAccCircleRadius();
       onProjectChanged();
     });
   });
 }
 
-function wireEPCI(){
-  $('btnEPCIOn')?.addEventListener('click', ()=>{
-    app.epci.enabled = true; setChipsDisabled(true);
-    drawEPCILayer(); updateCompliance(); closeSheet('sheetEPCI');
-    setStatus('Mode EPCI activé');
-  });
-  $('btnEPCIOff')?.addEventListener('click', ()=>{
-    app.epci.enabled = false; setChipsDisabled(false);
-    clearEPCILayer(); updateCompliance(); closeSheet('sheetEPCI');
-    setStatus('Mode EPCI désactivé');
-  });
-  $('epciPolicy')?.addEventListener('change', (e)=>{
-    app.epci.policy = e.target.value || 'public';
-    updateCompliance();
-  });
-  $('btnLoadEPCI')?.addEventListener('click', async ()=>{
-    const f = $('fileEPCI')?.files?.[0]; if(!f) return showError('Aucun fichier GeoJSON EPCI');
-    try{
-      const text = await f.text(); const gj = JSON.parse(text);
-      app.epci.geojson = gj;
-      drawEPCILayer(); updateCompliance();
-      setStatus('Polygone EPCI chargé');
-    }catch(e){ showError('GeoJSON invalide'); }
-  });
-  $('btnClearEPCI')?.addEventListener('click', ()=>{
-    app.epci.geojson = null; clearEPCILayer(); updateCompliance(); setStatus('Polygone EPCI vidé');
-  });
-
-  $('btnEPCI')?.addEventListener('click', ()=> openSheet('sheetEPCI'));
-  document.querySelectorAll('[data-close="#sheetEPCI"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetEPCI')));
-}
-
 // ================== Reactions ==================
 function afterModelChange(){
   redrawParticipants();
-  updateCompliance();   // pire paire (juridique) + disque SEC + EPCI si actif
+  updateCompliance();   // pire paire + MAJ cercle
   saveProject();
 }
 function onProjectChanged(){
@@ -593,7 +487,6 @@ function onProjectChanged(){
     wireProducer();
     wireParticipants();
     wireDiameterChips();
-    wireEPCI();
 
     const fromUrl = new URLSearchParams(location.search).get('project')
                  || localStorage.getItem(STORAGE_LAST);
