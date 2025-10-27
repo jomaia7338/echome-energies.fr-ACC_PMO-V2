@@ -2,175 +2,104 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>ACC · Coordination (V2)</title>
-  <meta name="theme-color" content="#37C3AF" />
-  <meta name="mobile-web-app-capable" content="yes" />
-  <link rel="manifest" href="manifest.json" />
-  <link rel="icon" href="icon-32.png" sizes="32x32" />
-  <link rel="apple-touch-icon" href="icon-192.png" />
-  <!-- Leaflet -->
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ECHOME · ACC – Carte (hotfix)</title>
+
+  <!-- Leaflet CSS (+ fallback) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
-  <!-- Styles -->
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+
+  <style>
+    :root{--ink:#1c1c1c;--line:#e6eaea;--brand:#37C3AF}
+    html,body{height:100%}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;color:var(--ink);background:#fff}
+    header.slim{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:6px 8px}
+    .brand{display:flex;align-items:center;gap:8px}
+    .brand svg{height:26px;width:auto;border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+    .brand .name{font-weight:700;letter-spacing:.3px}
+    .btn{padding:6px 8px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#fff;cursor:pointer;font-weight:700}
+    #status{margin:6px 8px 0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;font-size:14px}
+    #map{min-height:420px;margin:8px;border:1px solid var(--line);border-radius:12px}
+  </style>
 </head>
 <body>
-  <header class="topbar">
+  <header class="slim">
     <div class="brand">
       <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
-        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#fff">ECHOME</text>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
       </svg>
-      <span>ACC · Coordination</span>
+      <span class="name">ECHOME · ACC (hotfix carte)</span>
     </div>
-
-    <div class="toolbar">
-      <div class="group" role="radiogroup" aria-label="Type de point">
-        <label class="chip"><input type="radio" name="ptype" value="producer"> <span class="dot prod"></span>Prod.</label>
-        <label class="chip"><input type="radio" name="ptype" value="consumer" checked> <span class="dot cons"></span>Cons.</label>
-      </div>
-
-      <div class="group">
-        <label class="small">Diamètre D :</label>
-        <select id="diamSel">
-          <option value="2">2 km</option>
-          <option value="10">10 km</option>
-          <option value="20" selected>20 km</option>
-          <option value="custom">Perso</option>
-        </select>
-        <input id="diamCustom" type="number" min="0.1" step="0.1" placeholder="km" style="width:90px;display:none">
-      </div>
-
-      <div class="group">
-        <button id="btnLocate" class="btn icon" title="Me localiser">📍</button>
-        <button id="btnFit" class="btn icon" title="Ajuster la vue">🗺️</button>
-        <button id="btnPrint" class="btn icon" title="Imprimer / PDF">🖨️</button>
-        <button id="btnClear" class="btn icon" title="Effacer participants">🗑️</button>
-        <button id="btnDrawer" class="btn secondary">⚙️ Options</button>
-      </div>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <button id="fitBtn" class="btn">🗺️ Ajuster</button>
     </div>
   </header>
 
   <div id="status" role="status" aria-live="polite">Initialisation…</div>
+  <div id="map" aria-label="Carte interactive"></div>
 
-  <main>
-    <div id="map" aria-label="Carte interactive"></div>
-    <div class="legend-overlay">
-      <div class="item"><span class="dot prod"></span>Producteur</div>
-      <div class="item"><span class="dot cons"></span>Consommateur</div>
-      <div class="item"><span class="dot poi"></span>POI incendie</div>
-    </div>
-  </main>
-
-  <!-- Drawer -->
-  <aside id="drawer" aria-hidden="true">
-    <header>
-      <h2>Options & Données</h2>
-      <button id="btnDrawerClose" class="btn secondary">Fermer</button>
-    </header>
-
-    <div class="tabs">
-      <button class="tab active" data-tab="tab-general">Général</button>
-      <button class="tab" data-tab="tab-poi">POI incendie</button>
-      <button class="tab" data-tab="tab-entreprises">Entreprises (EPCI)</button>
-      <button class="tab" data-tab="tab-export">Exports</button>
-    </div>
-
-    <div class="content">
-      <!-- Général -->
-      <section id="tab-general" class="tab-pane active">
-        <fieldset>
-          <legend>Projet</legend>
-          <div class="row">
-            <label class="small">Nom :</label>
-            <input id="projName" type="text" placeholder="Projet 1" style="flex:1">
-          </div>
-          <div class="row" style="margin-top:6px">
-            <button id="btnSave" class="btn">Enregistrer (local)</button>
-            <select id="projList" style="flex:1"></select>
-            <button id="btnLoad" class="btn secondary">Charger</button>
-            <button id="btnDel" class="btn secondary">Supprimer</button>
-          </div>
-          <div class="row" style="margin-top:6px">
-            <button id="btnExportJson" class="btn">Exporter fichier</button>
-            <input id="inpImportJson" type="file" accept="application/json">
-          </div>
-          <div class="small" style="margin-top:6px">Participants : <span id="count">0</span></div>
-        </fieldset>
-
-        <fieldset>
-          <legend>Recherche d’adresse</legend>
-          <div class="row">
-            <input id="qAddr" type="text" placeholder="Adresse, commune, CP" style="flex:1">
-            <button id="btnSearchAddr" class="btn">Rechercher</button>
-          </div>
-          <div id="addrResults" class="small" style="margin-top:6px"></div>
-        </fieldset>
-      </section>
-
-      <!-- POI -->
-      <section id="tab-poi" class="tab-pane">
-        <fieldset>
-          <legend>POI incendie & secours</legend>
-          <div class="small">Source OSM/Overpass — Isère (fire_station). Réessaie si surcharge.</div>
-          <div class="row" style="margin-top:6px">
-            <button id="btnLoadPoi38" class="btn">Charger POI Isère</button>
-            <label class="small"><input type="checkbox" id="chkPoi" checked> Afficher</label>
-            <button id="btnClearPoi" class="btn secondary">Effacer POI</button>
-          </div>
-          <div class="small" style="margin-top:6px">Chargés : <span id="poiCount">0</span> — Dans D/2 : <span id="poiInCircle">0</span></div>
-        </fieldset>
-      </section>
-
-      <!-- Entreprises -->
-      <section id="tab-entreprises" class="tab-pane">
-        <fieldset>
-          <legend>Annuaire Entreprises (EPCI)</legend>
-          <div class="small">Public API — sans clé. EPCI par défaut : <strong>243801024</strong> (CC du Massif du Vercors).</div>
-          <div class="row" style="margin-top:6px">
-            <input id="epciCode" type="text" placeholder="EPCI (ex. 243801024)" value="243801024" style="width:180px">
-            <button id="btnFetchEPCI" class="btn">Charger</button>
-            <button id="btnCsvEPCI" class="btn secondary" disabled>Exporter CSV</button>
-          </div>
-          <div class="small" style="margin-top:6px">Résultats : <span id="epciCount">0</span> — Pages : <span id="epciPages">0</span></div>
-          <label class="small" style="display:flex;align-items:center;gap:6px;margin-top:6px">
-            <input type="checkbox" id="chkFilterPerimeter" checked>
-            Ne conserver que les entreprises dans le périmètre (D/2)
-          </label>
-        </fieldset>
-      </section>
-
-      <!-- Exports -->
-      <section id="tab-export" class="tab-pane">
-        <fieldset>
-          <legend>Exports</legend>
-          <div class="row">
-            <button id="btnCsvParticipants" class="btn">Exporter CSV participants</button>
-            <button id="btnCsvPoi" class="btn">Exporter CSV POI</button>
-          </div>
-          <div class="row" style="margin-top:6px">
-            <button id="btnGjPerimeter" class="btn secondary" disabled>Exporter GeoJSON périmètre</button>
-            <button id="btnGjPoints" class="btn secondary">Exporter GeoJSON points</button>
-          </div>
-        </fieldset>
-      </section>
-    </div>
-  </aside>
-
-  <!-- Impression -->
-  <div class="print-header" id="printHeader">
-    <div class="left brand">
-      <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-        <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
-        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#fff">ECHOME</text>
-      </svg>
-      <span class="title">ACC · Coordination</span>
-    </div>
-    <div class="right small" id="printMeta"></div>
-  </div>
-
-  <!-- Leaflet JS + App -->
+  <!-- Leaflet JS (+ fallback) -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
-  <script src="app.js"></script>
+  <script>
+    // Si unpkg est bloqué, essayer cdnjs
+    (function ensureLeaflet(cb){
+      if(window.L){ cb(); return; }
+      var s=document.createElement('script');
+      s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+      s.crossOrigin='anonymous'; s.referrerPolicy='no-referrer';
+      s.onload=cb;
+      s.onerror=function(){ document.getElementById('status').textContent='Erreur : Leaflet bloqué (réseau).'; };
+      document.head.appendChild(s);
+    })(initApp);
+
+    function initApp(){
+      const statusEl = document.getElementById('status');
+      const mapEl = document.getElementById('map');
+
+      // Ajuste la hauteur de la carte (vue plein écran – header – marges)
+      function layout(){
+        const H=document.querySelector('header.slim');
+        const h=Math.max(420, window.innerHeight - H.getBoundingClientRect().height - 16);
+        mapEl.style.height = h + 'px';
+        try{ map.invalidateSize(); }catch(_){}
+      }
+
+      // Crée la carte
+      const map = L.map('map', { zoomControl:true }).setView([45.3, 5.6], 9);
+
+      // Fond OSM France (clair et rapide)
+      const osmfr = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+        maxZoom: 20,
+        attribution: '© OpenStreetMap – style OSM FR'
+      });
+
+      // Fallback Carto Light
+      const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png', {
+        maxZoom: 20,
+        attribution: '© Carto, © OpenStreetMap'
+      });
+
+      osmfr.on('tileerror', ()=>{ if(!map.hasLayer(carto)) carto.addTo(map); if(map.hasLayer(osmfr)) map.removeLayer(osmfr); statusEl.textContent='Fond OSM FR indisponible → Carto Light.'; });
+      osmfr.addTo(map);
+
+      // Échelle métrique
+      L.control.scale({imperial:false, metric:true, maxWidth:120}).addTo(map);
+
+      // Bouton ajuster
+      document.getElementById('fitBtn').onclick = ()=>{
+        try{ map.setView([45.3,5.6], 9); }catch(_){}
+      };
+
+      // Layout dynamique
+      window.addEventListener('resize', layout);
+      setTimeout(layout, 30);
+
+      statusEl.textContent = 'Carte OK. Tu peux réintégrer ensuite les fonctionnalités V2.';
+      // Log propre des erreurs JS pour éviter "page blanche silencieuse"
+      window.addEventListener('error', e=>{ statusEl.textContent='Erreur JS : '+e.message; });
+      window.addEventListener('unhandledrejection', e=>{ statusEl.textContent='Erreur Promesse : '+(e.reason?.message||e.reason); });
+    }
+  </script>
 </body>
 </html>
