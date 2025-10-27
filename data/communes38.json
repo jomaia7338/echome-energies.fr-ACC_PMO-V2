@@ -1,0 +1,17 @@
+[
+  { "code": "38001", "nom": "Agnin", "lat": 45.3409, "lon": 4.8823 },
+  { "code": "38005", "nom": "Allemond", "lat": 45.1265, "lon": 6.0762 },
+  { "code": "38006", "nom": "Allevard", "lat": 45.3994, "lon": 6.0780 },
+  { "code": "38010", "nom": "Annoisin-Chatelans", "lat": 45.7447, "lon": 5.2833 },
+  { "code": "38012", "nom": "Apprieu", "lat": 45.3776, "lon": 5.4919 },
+  { "code": "38019", "nom": "Autrans-Méaudre en Vercors", "lat": 45.1795, "lon": 5.5375 },
+  { "code": "38021", "nom": "Beaurepaire", "lat": 45.3387, "lon": 5.0694 },
+  { "code": "38022", "nom": "Beaucroissant", "lat": 45.3473, "lon": 5.4380 },
+  { "code": "38053", "nom": "Bourgoin-Jallieu", "lat": 45.5860, "lon": 5.2731 },
+  { "code": "38185", "nom": "Grenoble", "lat": 45.1885, "lon": 5.7245 },
+  { "code": "38229", "nom": "La Mure", "lat": 44.9050, "lon": 5.7878 },
+  { "code": "38225", "nom": "La Tour-du-Pin", "lat": 45.5638, "lon": 5.4431 },
+  { "code": "38297", "nom": "Saint-Martin-d'Hères", "lat": 45.1785, "lon": 5.7532 },
+  { "code": "38324", "nom": "Seyssinet-Pariset", "lat": 45.1762, "lon": 5.6745 },
+  { "code": "38544", "nom": "Villard-de-Lans", "lat": 45.0747, "lon": 5.5536 }
+]
