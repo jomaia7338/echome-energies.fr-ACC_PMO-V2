@@ -3,32 +3,35 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>ECHOME · ACC – Carte + ACC (D/2) + POI + Exports</title>
+  <title>ACC – Centre libre (diamètre) + POI + Entreprises (API)</title>
 
   <!-- Leaflet CSS (+ fallback) -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#37C3AF">
 
   <style>
     :root{--ink:#1c1c1c;--line:#e6eaea;--muted:#f7f8f8;--ok:#0f766e;--bad:#b91c1c;--brand:#37C3AF}
     html,body{height:100%}
-    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;color:var(--ink);background:#fff}
+    body{margin:0;font-family:'Open Sans', system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;color:var(--ink);background:#fff}
 
     /* Header */
     header.slim{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:6px 8px}
     .brand{display:flex;align-items:center;gap:8px}
     .brand svg{height:26px;width:auto;border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
-    .brand .name{font-weight:700;letter-spacing:.3px}
+    .brand .name{font-family:'Montserrat',sans-serif;font-weight:700;letter-spacing:.3px}
     .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;width:100%}
     .group{display:flex;align-items:center;gap:8px}
     .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#fff}
     .dot{width:10px;height:10px;border-radius:50%}
-    .prod{background:#6D28D9}.cons{background:#2e86de}.poi{background:#E10600}
+    .prod{background:#6D28D9}.cons{background:#2e86de}.poi{background:#E10600}.biz{background:#16a34a}
 
     .btn{padding:6px 8px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#fff;cursor:pointer;font-weight:700}
     .btn.icon{padding:6px 8px;min-width:36px;display:inline-flex;align-items:center;justify-content:center}
     .btn.secondary{background:#fff;color:#0f4f47;border-color:var(--brand)}
-    select,input[type="number"],input[type="text"]{border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+    select, input[type="number"], input[type="text"]{border:1px solid var(--line);border-radius:8px;padding:6px 8px}
 
     #status{margin:6px 8px 0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;font-size:14px}
     #status.ok{background:rgba(55,195,175,.08);border-color:rgba(55,195,175,.45);color:#116a60}
@@ -36,15 +39,11 @@
 
     #map{min-height:420px;margin:8px;border:1px solid var(--line);border-radius:12px;position:relative}
 
-    /* Légende écran */
-    .legend-overlay{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;gap:10px;align-items:center;font-size:12px}
-    .legend-overlay .item{display:flex;align-items:center;gap:6px}
-
     /* Drawer */
-    #drawer{position:fixed;inset:auto 0 0 auto;top:0;height:100vh;width:400px;max-width:92vw;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.06);transform:translateX(100%);transition:.25s ease;z-index:5000;display:flex;flex-direction:column}
+    #drawer{position:fixed;inset:auto 0 0 auto;top:0;height:100vh;width:420px;max-width:92vw;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.06);transform:translateX(100%);transition:.25s ease;z-index:5000;display:flex;flex-direction:column}
     #drawer.open{transform:none}
     #drawer header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line)}
-    #drawer h2{font-size:16px;margin:0}
+    #drawer h2{font-family:'Montserrat',sans-serif;font-size:16px;margin:0}
     #drawer .content{padding:12px;overflow:auto}
     fieldset{border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:10px}
     legend{padding:0 6px;color:#475569;font-size:12px}
@@ -52,10 +51,17 @@
     .small{font-size:12px;color:#64748b}
     .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 
-    /* Échelle 1:n */
-    .leaflet-control.ratio-control{background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12px;z-index:1000}
+    /* Légende carte (écran) */
+    .legend-overlay{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;gap:10px;align-items:center;font-size:12px}
+    .legend-overlay .item{display:flex;align-items:center;gap:6px}
 
-    /* Tooltip centre libre */
+    /* Échelle 1:n */
+    .leaflet-control.ratio-control{
+      background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:8px;
+      padding:4px 8px;font-size:12px;z-index:1000
+    }
+
+    /* Centre libre (tooltip) */
     .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 
     /* PRINT */
@@ -68,7 +74,7 @@
       .print-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
       .print-header .left{display:flex;align-items:center;gap:8px}
       .print-header .brand svg{height:26px}
-      .print-header .title{font-weight:700}
+      .print-header .title{font-family:'Montserrat',sans-serif;font-weight:700}
       #map{ height:170mm !important; min-height:170mm !important; margin:0; border:0 }
       .leaflet-pane, .leaflet-map-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow{ transform:none !important; animation:none !important; }
       .leaflet-container{ background:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
@@ -85,13 +91,13 @@
     <div class="brand" role="img" aria-label="Echome Énergies">
       <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
-        <text x="60" y="19" text-anchor="middle" font-size="14" fill="#ffffff">ECHOME</text>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
       </svg>
-      <span class="name">ECHOME · ACC (V2)</span>
+      <span class="name">Echome Énergies</span>
     </div>
 
     <div class="controls">
-      <!-- Type de point -->
+      <!-- Type de point à ajouter (Participants ACC) -->
       <div class="group" role="radiogroup" aria-label="Type de point (ACC)">
         <label class="chip"><input type="radio" name="ptype" value="consumer" checked> <span class="dot cons"></span>Cons.</label>
         <label class="chip"><input type="radio" name="ptype" value="producer"> <span class="dot prod"></span>Prod.</label>
@@ -111,10 +117,10 @@
 
       <!-- Actions -->
       <div class="group">
-        <button id="locateBtn" class="btn icon" title="Me localiser">📍</button>
-        <button id="fitBtn" class="btn icon" title="Ajuster la vue">🗺️</button>
-        <button id="printBtn" class="btn icon" title="Exporter en PDF">🖨️</button>
-        <button id="clearBtn" class="btn icon" title="Effacer les participants">🗑️</button>
+        <button id="locateBtn" class="btn icon" title="Me localiser" aria-label="Me localiser">📍</button>
+        <button id="fitBtn" class="btn icon" title="Ajuster la vue" aria-label="Ajuster la vue">🗺️</button>
+        <button id="printBtn" class="btn icon" title="Exporter en PDF" aria-label="Exporter en PDF">🖨️</button>
+        <button id="clearBtn" class="btn icon" title="Effacer les participants" aria-label="Effacer les participants">🗑️</button>
         <button id="gearBtn" class="btn secondary" title="Options avancées">⚙️ Options</button>
       </div>
     </div>
@@ -125,9 +131,9 @@
     <div class="left brand">
       <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
         <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
-        <text x="60" y="19" text-anchor="middle" font-size="14" fill="#ffffff">ECHOME</text>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
       </svg>
-      <span class="title">ACC – Périmètre D/2 & POI</span>
+      <span class="title">ACC – Périmètre (diamètre) — POI + Entreprises</span>
     </div>
     <div class="right small" id="printMeta"></div>
   </div>
@@ -137,7 +143,8 @@
     <div class="legend-overlay" aria-hidden="true">
       <div class="item"><span class="dot prod"></span>Producteur</div>
       <div class="item"><span class="dot cons"></span>Consommateur</div>
-      <div class="item"><span class="dot poi"></span>POI incendie (SDIS/SDMIS/STIS/SLIS…)</div>
+      <div class="item"><span class="dot poi"></span>POI incendie</div>
+      <div class="item"><span class="dot biz"></span>Entreprises (API)</div>
     </div>
   </div>
 
@@ -174,30 +181,39 @@
       </fieldset>
 
       <fieldset>
-        <legend>Points d’intérêt “Incendie & Secours” (Isère)</legend>
-        <div class="small">OSM/Overpass – Isère. Mots-clés : SDIS, SDMIS, STIS, SLIS (autres casernes incluses).</div>
+        <legend>Entreprises (API Annuaire)</legend>
+        <div class="small">Source : <code>recherche-entreprises.api.gouv.fr</code> (sans clé, pagination 25 max/page). Chargées en cache local.</div>
         <div class="row" style="margin-top:6px">
-          <button id="loadPoiIsere" class="btn">Charger POI Isère</button>
-          <button id="clearPoi" class="btn secondary">Effacer POI</button>
-          <label class="small"><input type="checkbox" id="togglePoi" checked> Afficher POI</label>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <button id="exportPoiCsv" class="btn secondary">Exporter CSV des POI</button>
-          <button id="exportPoiGeoJson" class="btn secondary">Exporter GeoJSON des POI</button>
-        </div>
-        <div class="small" style="margin-top:6px">POI : <span id="poiStats">0</span> — Dans D/2 : <span id="poiInRange">0</span></div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Exports (participants & périmètre)</legend>
-        <div class="row">
-          <button id="exportPartCsv" class="btn">Exporter CSV des participants</button>
-          <button id="exportPartGeoJson" class="btn secondary">Exporter GeoJSON des participants</button>
+          <label class="small">EPCI (code SIREN) :</label>
+          <input id="aeEpci" type="text" placeholder="243801024" value="243801024" style="width:160px">
+          <label class="small">Terme :</label>
+          <input id="aeTerm" type="text" placeholder="filtre optionnel" style="flex:1;min-width:120px">
         </div>
         <div class="row" style="margin-top:6px">
-          <button id="exportCircleGeoJson" class="btn secondary">Exporter GeoJSON du périmètre (cercle D/2)</button>
-          <button id="clearCircle" class="btn secondary">Supprimer le périmètre</button>
+          <label class="small">NAF :</label>
+          <input id="aeNaf" type="text" placeholder="ex: 47.11A" style="width:120px">
+          <label class="small">État :</label>
+          <select id="aeEtat">
+            <option value="active" selected>active</option>
+            <option value="fermee">fermée</option>
+            <option value="">(toutes)</option>
+          </select>
+          <label class="small" title="Limiter le volume total"><span>Plafond</span> <input id="aeSoftLimit" type="number" min="25" step="25" value="2000" style="width:90px"></label>
         </div>
+        <div class="row" style="margin-top:6px">
+          <button id="aeFetch" class="btn">Charger</button>
+          <button id="aeCancel" class="btn secondary">Annuler</button>
+          <button id="aeShowAll" class="btn secondary">Afficher sur carte</button>
+          <label class="small"><input id="aeInsideOnly" type="checkbox"> Afficher seulement “dans le périmètre”</label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="aeExportCsvAll" class="btn">Export CSV (toutes)</button>
+          <button id="aeExportCsvIn" class="btn secondary">Export CSV (dans périm.)</button>
+          <button id="aeExportGjAll" class="btn">Export GeoJSON (toutes)</button>
+          <button id="aeExportGjIn" class="btn secondary">Export GeoJSON (dans périm.)</button>
+          <button id="aeClearCache" class="btn secondary" title="Purger cache local">Purger cache</button>
+        </div>
+        <div class="small" style="margin-top:6px">Etat : <span id="aeState">—</span></div>
       </fieldset>
 
       <fieldset>
@@ -209,11 +225,17 @@
         <div id="searchResults" class="small" aria-live="polite" style="margin-top:6px"></div>
       </fieldset>
 
+      <fieldset>
+        <legend>Producteur par défaut</legend>
+        <div class="small">Adresse : <em>210 Les Espinasses, 38250 Villard-de-Lans</em></div>
+        <div style="margin-top:6px"><button id="resetDefaultBtn" class="btn secondary">Réinitialiser le défaut</button></div>
+      </fieldset>
+
       <div class="small" style="margin-top:10px">Participants : <span id="count">Aucun point.</span></div>
     </div>
   </aside>
 
-  <!-- Leaflet JS (+ fallback) -->
+  <!-- Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
   <script>
     // Fallback si unpkg bloqué
@@ -227,8 +249,6 @@
     function initApp(){
       const statusEl = document.getElementById('status');
       const mapEl = document.getElementById('map');
-      const poiStatsEl = document.getElementById('poiStats');
-      const poiInRangeEl = document.getElementById('poiInRange');
 
       // Utils
       const eps = 1e-9; const toRad = d => d*Math.PI/180;
@@ -241,7 +261,7 @@
         const lat1=toRad(a.lat), lat2=toRad(b.lat);
         const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
 
-      // MEC utils (points: {lat,lng})
+      // MEC (cercle minimum) utils
       function projectLocal(pointsLL){ const lat0=pointsLL.reduce((s,p)=>s+p.lat,0)/pointsLL.length; const lon0=pointsLL.reduce((s,p)=>s+p.lng,0)/pointsLL.length;
         const P=pointsLL.map(p=>({x:(p.lng-lon0)*111.32*Math.cos(lat0*Math.PI/180), y:(p.lat-lat0)*111.32})); return {lat0,lon0,P}; }
       function unprojectLocal(lat0,lon0,x,y){ return {lat:lat0 + y/111.32, lng: lon0 + x/(111.32*Math.cos(lat0*Math.PI/180))}; }
@@ -265,14 +285,14 @@
       }
 
       // Carte
-      const map = L.map('map', { zoomControl:true }).setView([45.3, 5.6], 9);
-      const osmfr = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',{ maxZoom:20, attribution:'© OpenStreetMap – style OSM FR' });
-      const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{ maxZoom:20, attribution:'© Carto, © OpenStreetMap' });
-      osmfr.on('tileerror', ()=>{ if(!map.hasLayer(carto)) carto.addTo(map); if(map.hasLayer(osmfr)) map.removeLayer(osmfr); tSet(statusEl,'Fond OSM FR indisponible → Carto Light.'); });
-      osmfr.addTo(map);
-
-      // Échelles
+      const map = L.map('map', { zoomControl:true }).setView([45.3, 5.6], 8);
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© OpenStreetMap' });
+      const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© Carto, © OpenStreetMap' });
+      osm.on('tileerror', ()=>{ if(!map.hasLayer(carto)) carto.addTo(map); if(map.hasLayer(osm)) map.removeLayer(osm); tSet(statusEl,'Fond OSM bloqué → Carto Light.'); });
+      osm.addTo(map);
       L.control.scale({imperial:false, metric:true, maxWidth:120}).addTo(map);
+
+      /* Échelle 1:n (ratio approximatif) */
       const RatioControl = L.Control.extend({
         options: { position: 'topright' },
         onAdd: function(map){
@@ -292,36 +312,35 @@
       map.whenReady(() => { map.addControl(new RatioControl()); });
 
       function layout(){ const H=document.querySelector('header.slim'); const h=Math.max(420, window.innerHeight - H.getBoundingClientRect().height - 16); mapEl.style.height=h+'px'; try{ map.invalidateSize(); }catch(_){ } }
-      window.addEventListener('resize', layout); setTimeout(layout, 30);
+      window.addEventListener('resize', layout); setTimeout(layout, 50);
 
-      // Données & couches
+      // Données
       const participants=[]; // {id,name,type,lat,lng,marker}
-      const pois=[];         // {id,name,kind,lat,lng,marker}
       let uid=0;
       let vizCircle=null; // cercle visuel ACC (diamètre)
-      const colors={producer:'#6D28D9', consumer:'#2e86de', poi:'#E10600'};
-
+      const colors={producer:'#6D28D9', consumer:'#2e86de', poi:'#E10600', biz:'#16a34a'};
       const participantLayer = L.layerGroup().addTo(map);
-      const poiLayer = L.layerGroup().addTo(map);
+
+      // Expose pour autres modules
+      window.addParticipant = addParticipant;
+      window.haversineKm = haversineKm;
+      window.eps = eps;
+      window.map = map;
 
       // UI helpers
       function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
-      function currentDiameter(){
-        const sel=document.getElementById('limitSel').value;
-        if(sel==='custom'){ const v=parseFloat(document.getElementById('customKm').value||'0'); return (isNaN(v)||v<=0)?20:v; }
-        return parseFloat(sel);
-      }
+      function currentDiameter(){ const sel=document.getElementById('limitSel').value; if(sel==='custom'){ const v=parseFloat(document.getElementById('customKm').value||'0'); return (isNaN(v)||v<=0)?20:v; } return parseFloat(sel); }
       function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.'; }
-      function setPoiStats(){ poiStatsEl.textContent = String(pois.length); }
 
-      // --- PARTICIPANTS ---
+      // Ajout PARTICIPANT (clic carte)
       function addParticipant(lat,lng,type,name){
         const id=++uid; const label=name || `${type} ${id}`;
         const m=L.circleMarker([lat,lng],{radius:7,color:colors[type],weight:2,fillColor:colors[type],fillOpacity:0.3}).addTo(participantLayer);
         const entry={id,name:label,type,lat,lng,marker:m};
         m.bindTooltip(`${safeText(label)} (${type})`);
         m.bindPopup(makeParticipantPopup(entry));
-        m.on('contextmenu', ()=> removeParticipant(id)); // clic droit = suppr
+        // suppression par double-clic (UX plus intuitive)
+        m.on('dblclick', ()=> removeParticipant(id));
         participants.push(entry);
         refreshACC(true);
       }
@@ -344,21 +363,7 @@
       }
       map.on('click', e=> addParticipant(e.latlng.lat, e.latlng.lng, selectedType()));
 
-      // --- POI ---
-      function addPOI(lat,lng,kind,name){
-        const id=++uid; const label=name||kind||'POI';
-        const m=L.circleMarker([lat,lng],{radius:6,color:colors.poi,weight:2,fillColor:colors.poi,fillOpacity:0.25}).addTo(poiLayer);
-        const entry={id,name:label,kind,lat,lng,marker:m};
-        m.bindTooltip(`${safeText(label)} — ${kind||'incendie'}`);
-        pois.push(entry);
-        setPoiStats();
-        updatePoiInRange();
-      }
-      function clearPOIs(){
-        poiLayer.clearLayers(); pois.splice(0, pois.length); setPoiStats(); updatePoiInRange();
-      }
-
-      // --- ACC logique (D fixe = diamètre, cercle de rayon R=D/2 autour du centre libre)
+      // ACC core (diamètre)
       function clearVizCircle(){ if(vizCircle){ map.removeLayer(vizCircle); vizCircle=null; } }
       function styleParticipants(center, R){
         participants.forEach(p=>{
@@ -376,11 +381,11 @@
         updateCount();
         const D=currentDiameter(); const R=D/2;
         clearVizCircle();
-        if(!participants.length){ tSet(statusEl,'Ajoutez un producteur et des consommateurs.'); poiInRangeEl.textContent='0'; return; }
-        if(!participants.some(p=>p.type==='producer')){ tSet(statusEl,'Aucun producteur détecté.'); poiInRangeEl.textContent='0'; return; }
+        if(!participants.length){ tSet(statusEl,'Ajoutez un producteur et des consommateurs.'); return; }
+        if(!participants.some(p=>p.type==='producer')){ tSet(statusEl,'Aucun producteur détecté.'); return; }
 
         const mec = minimalEnclosingCircle(participants.map(p=>({lat:p.lat,lng:p.lng})));
-        if(!mec){ tSet(statusEl,'Centre libre non calculable.'); poiInRangeEl.textContent='0'; return; }
+        if(!mec){ tSet(statusEl,'Centre libre non calculable.'); return; }
         const pass = mec.r <= R + eps;
 
         vizCircle = L.circle([mec.center.lat,mec.center.lng],{ radius:R*1000,color:'#6D28D9',weight:2,fill:false,opacity:0.9,dashArray:'6 6' })
@@ -399,30 +404,9 @@
         }else{
           hSet(statusEl, `<strong>Non conforme</strong> — D=${esc(String(D))} km · r*=${esc(mec.r.toFixed(2))} km > D/2=${esc(R.toFixed(2))} km · Points limitants : ${outside.map(esc).join(', ')||'—'}`, 'ko');
         }
-
-        updatePoiInRange(mec.center, R); // info uniquement
-      }
-      function updatePoiInRange(center=null, R=null){
-        if(!center || R==null){
-          if(!vizCircle){ poiInRangeEl.textContent='0'; return; }
-          center = vizCircle.getLatLng(); R = (vizCircle.getRadius()||0)/1000;
-        }
-        let cnt=0;
-        pois.forEach(p=>{
-          const inside = haversineKm(center,{lat:p.lat,lng:p.lng}) <= R + eps;
-          if(inside) cnt++;
-          p.marker.setStyle({
-            color: inside ? colors.poi : '#8b8b8b',
-            weight: inside ? 4 : 2,
-            fillColor: colors.poi,
-            fillOpacity: inside ? 0.55 : 0.15
-          });
-          p.marker.bindTooltip(`${safeText(p.name)} — ${inside ? 'dans D/2' : 'hors D/2'}`);
-        });
-        poiInRangeEl.textContent = String(cnt);
       }
 
-      // --- UI top bar
+      // UI top bar
       document.getElementById('limitSel').addEventListener('change', (e)=>{ const v=e.target.value; const custom=document.getElementById('customKm'); custom.style.display=(v==='custom')?'inline-block':'none'; refreshACC(); });
       document.getElementById('customKm').addEventListener('input', refreshACC);
       document.getElementById('clearBtn').onclick = ()=>{ participants.slice().forEach(p=> removeParticipant(p.id)); };
@@ -492,7 +476,7 @@
       window.addEventListener('beforeprint', async ()=>{ updatePrintHeader(); try{ map.invalidateSize(); }catch(_){ } await ensureTilesReady(1500); });
       window.addEventListener('afterprint', ()=>{ setTimeout(()=>{ try{ map.invalidateSize(); }catch(_){ } }, 100); });
 
-      // Recherche d’adresse (Photon→fallback Nominatim)
+      // Recherche adresse
       async function geocodePhoton(q){ const url='https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lang=fr&limit=5'; const r=await fetch(url); if(!r.ok) throw new Error('Photon'); const j=await r.json(); return (j.features||[]).map(f=>{ const g=f.geometry, p=f.properties||{}; if(!g||!g.coordinates) return null; const lat=g.coordinates[1], lng=g.coordinates[0]; const label=[p.housenumber,p.street,p.name,p.city,p.postcode].filter(Boolean).join(' '); return {label: label || p.name || q, lat, lng}; }).filter(Boolean); }
       async function geocodeNominatim(q){ const url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q='+encodeURIComponent(q); const r=await fetch(url,{headers:{'Accept':'application/json'}}); if(!r.ok) throw new Error('Nominatim'); const j=await r.json(); return j.map(o=>({label:o.display_name,lat:parseFloat(o.lat),lng:parseFloat(o.lon)})); }
       async function searchAddress(q){ const box=document.getElementById('searchResults'); box.textContent='Recherche…'; let res=[]; try{ res=await geocodePhoton(q); }catch(_){ } if(!res.length){ try{ res=await geocodeNominatim(q); }catch(_){ } }
@@ -503,125 +487,251 @@
       document.getElementById('searchQ').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); const q=(e.target.value||'').trim(); if(q) searchAddress(q); } });
       document.getElementById('searchResults').addEventListener('click', e=>{ const a=e.target.closest('a[data-lat]'); if(!a) return; e.preventDefault(); addParticipant(parseFloat(a.dataset.lat), parseFloat(a.dataset.lng), selectedType(), a.dataset.label); map.setView([parseFloat(a.dataset.lat), parseFloat(a.dataset.lng)], 15); });
 
-      // POI Isère (Overpass) — SDIS/SDMIS/STIS/SLIS (et autres casernes)
-      async function loadPoiIsere(){
-        clearPOIs(); // IMPORTANT: non cumulatif
-        const queries = [
-`[out:json][timeout:60];
-(
-  rel["admin_level"="6"]["ref:INSEE"="38"];
-  rel["admin_level"="6"]["name"="Isère"];
-  rel["admin_level"="6"]["name"="Isere"];
-); map_to_area->.a;
-(
-  node["amenity"="fire_station"](area.a);
-  way["amenity"="fire_station"](area.a);
-  relation["amenity"="fire_station"](area.a);
-); out center tags;`,
-`[out:json][timeout:60];
-(
-  node["amenity"="fire_station"](45.00,5.10,45.80,6.45);
-  way["amenity"="fire_station"](45.00,5.10,45.80,6.45);
-  relation["amenity"="fire_station"](45.00,5.10,45.80,6.45);
-); out center tags;`
-        ];
-        const endpoints=['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter','https://lz4.overpass-api.de/api/interpreter'];
-        const btn=document.getElementById('loadPoiIsere'); const prev=btn.textContent; btn.disabled=true; btn.textContent='Chargement…';
-
-        function kindFromTags(tags){
-          const t=(s)=>String(s||'').toUpperCase();
-          const name=t(tags.name), op=t(tags.operator);
-          if(/SDMIS/.test(name)||/SDMIS/.test(op)) return 'SDMIS';
-          if(/STIS/.test(name)||/STIS/.test(op)) return 'STIS';
-          if(/SLIS/.test(name)||/SLIS/.test(op)) return 'SLIS';
-          if(/SDIS/.test(name)||/SDIS/.test(op)) return 'SDIS';
-          return 'Caserne';
-        }
-        function parseAndAdd(j){
-          const els=Array.isArray(j.elements)?j.elements:[];
-          const seen=new Set(); let ok=0;
-          for(const el of els){
-            let lat=null,lng=null;
-            if(el.type==='node'){ lat=el.lat; lng=el.lon; }
-            else if(el.center){ lat=el.center.lat; lng=el.center.lon; }
-            if(lat==null || lng==null) continue;
-            const tags=el.tags||{}; const label=tags.name || tags['addr:place'] || tags['addr:city'] || 'Caserne';
-            const key=`${(label||'').toLowerCase()}|${lat.toFixed(5)}|${lng.toFixed(5)}`;
-            if(seen.has(key)) continue; seen.add(key);
-            addPOI(lat,lng, kindFromTags(tags), label); ok++;
-          }
-          return ok;
-        }
-
-        let success=false;
-        try{
-          for(const q of queries){
-            if(success) break;
-            for(const ep of endpoints){
-              try{
-                const r=await fetch(ep+'?data='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
-                if(!r.ok) throw new Error('HTTP '+r.status);
-                const j=await r.json();
-                const k=parseAndAdd(j);
-                if(k>0){ success=true; break; }
-              }catch(e){ /* try next endpoint */ }
-            }
-          }
-          tSet(statusEl, success ? 'POI Isère chargés.' : 'Aucun POI trouvé (aire/bbox). Vérifie le réseau.');
-        }finally{
-          btn.disabled=false; btn.textContent=prev;
-        }
+      // Producteur par défaut
+      const DEFAULT_ADDR='210 Les Espinasses, 38250 Villard-de-Lans, France';
+      const DEFAULT_FALLBACK={lat:45.073, lng:5.55};
+      async function geocodeDefault(addr){
+        try{ const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(addr)+'&lang=fr&limit=1'); if(r.ok){ const j=await r.json(); const f=j.features?.[0]; if(f) return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0]}; } }catch(_){}
+        try{ const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(addr)); if(r.ok){ const j=await r.json(); const f=j[0]; if(f) return {lat:+f.lat, lng:+f.lon}; } }catch(_){}
+        return null;
       }
-      document.getElementById('loadPoiIsere').addEventListener('click', loadPoiIsere);
-      document.getElementById('togglePoi').addEventListener('change', (e)=>{ if(e.target.checked){ poiLayer.addTo(map); } else { map.removeLayer(poiLayer); } });
-      document.getElementById('clearPoi').addEventListener('click', clearPOIs);
+      async function initDefaultProducer(){
+        try{ const saved=localStorage.getItem('defaultProducer');
+          if(saved){ const o=JSON.parse(saved); if(o && o.lat && o.lng){ addParticipant(o.lat,o.lng,'producer', o.name||'Producteur'); if(!document.getElementById('projName').value) document.getElementById('projName').value='Projet 1'; tSet(statusEl,'Producteur par défaut chargé.'); return; }
+        }}catch(_){ }
+        const g=await geocodeDefault(DEFAULT_ADDR);
+        if(g){ addParticipant(g.lat,g.lng,'producer','Producteur — défaut'); try{ localStorage.setItem('defaultProducer', JSON.stringify({lat:g.lat,lng:g.lng,name:'Producteur — défaut'})); }catch(_){ } tSet(statusEl,'Producteur par défaut géocodé.'); }
+        else { addParticipant(DEFAULT_FALLBACK.lat, DEFAULT_FALLBACK.lng,'producer','Producteur — approx.'); tSet(statusEl,'Producteur par défaut approx.'); }
+      }
+      document.getElementById('resetDefaultBtn').addEventListener('click', ()=>{ try{ localStorage.removeItem('defaultProducer'); tSet(statusEl,'Producteur par défaut réinitialisé.'); }catch(_){ } });
 
-      // Exports — CSV & GeoJSON
-      function download(name, blob){ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url); }
-
-      // Participants
-      document.getElementById('exportPartCsv').onclick = ()=>{
-        const header='name;lat;lon;type';
-        const rows=participants.map(p=>[p.name?.replace(/;/g,','), p.lat.toFixed(6), p.lng.toFixed(6), p.type].join(';'));
-        download('participants.csv', new Blob([[header,...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
-      };
-      document.getElementById('exportPartGeoJson').onclick = ()=>{
-        const fc={type:'FeatureCollection', features: participants.map(p=>({type:'Feature', properties:{name:p.name,type:p.type}, geometry:{type:'Point', coordinates:[p.lng,p.lat]}}))};
-        download('participants.geojson', new Blob([JSON.stringify(fc,null,2)],{type:'application/geo+json'}));
-      };
-
-      // POI
-      document.getElementById('exportPoiCsv').onclick = ()=>{
-        const header='name;lat;lon;kind';
-        const rows=pois.map(p=>[p.name?.replace(/;/g,','), p.lat.toFixed(6), p.lng.toFixed(6), p.kind||''].join(';'));
-        download('poi_isere.csv', new Blob([[header,...rows].join('\n')],{type:'text/csv;charset=utf-8;'}));
-      };
-      document.getElementById('exportPoiGeoJson').onclick = ()=>{
-        const fc={type:'FeatureCollection', features: pois.map(p=>({type:'Feature', properties:{name:p.name,kind:p.kind||''}, geometry:{type:'Point', coordinates:[p.lng,p.lat]}}))};
-        download('poi_isere.geojson', new Blob([JSON.stringify(fc,null,2)],{type:'application/geo+json'}));
+      // Import participants
+      document.getElementById('importBtn').onclick = ()=>{
+        const txt=(document.getElementById('bulk').value||'').trim(); if(!txt) return;
+        let ok=0,ko=0; txt.split(/\r?\n/).forEach(line=>{
+          if(!line.trim()) return; const p=line.split(/[;,]|\t/).map(s=>s.trim());
+          if(p.length<4){ko++;return;} const [name,latS,lonS,typeS]=p;
+          const lat=+latS, lng=+lonS; if(!isFinite(lat)||!isFinite(lng)){ko++;return;}
+          let t=(typeS||'').toLowerCase(); if(t.startsWith('cons')) t='consumer'; else if(t.startsWith('prod')) t='producer'; else {ko++;return;}
+          addParticipant(lat,lng,t,name); ok++;
+        });
+        tSet(statusEl,`Import participants : ${ok} ajouté(s), ${ko} rejeté(s).`);
       };
 
-      // Périmètre (cercle D/2)
-      document.getElementById('exportCircleGeoJson').onclick = ()=>{
-        if(!vizCircle){ tSet(statusEl,'Pas de périmètre à exporter.'); return; }
-        const c=vizCircle.getLatLng(); const r=vizCircle.getRadius(); // en mètres
-        // Approximation du cercle en polygone GeoJSON (64 segments)
-        const coords=[]; const seg=64; const R=6371000;
-        for(let i=0;i<=seg;i++){
-          const theta=2*Math.PI*(i/seg);
-          const dx=(r/R)*Math.cos(theta), dy=(r/R)*Math.sin(theta);
-          const lat=c.lat + (dy*180/Math.PI);
-          const lng=c.lng + (dx*180/Math.PI)/Math.cos(c.lat*Math.PI/180);
-          coords.push([lng,lat]);
+      /* ========= Module Entreprises (API) ========= */
+      const AE = (() => {
+        const state = {
+          items: [],      // normalisés
+          layer: null,    // L.layerGroup
+          abortCtrl: null
+        };
+        const MAX_PER_PAGE = 25;
+        const CACHE_PREFIX = 'ae_cache_v1:';
+
+        function keyFor(epci, terme, naf, etat) {
+          return `${CACHE_PREFIX}${epci}|${(terme||'').trim()}|${(naf||'').trim()}|${etat||'active'}`;
         }
-        const gj={type:'FeatureCollection',features:[{type:'Feature',properties:{label:'ACC D/2',radius_m:r},geometry:{type:'Polygon',coordinates:[coords]}}]};
-        download('perimetre_acc.geojson', new Blob([JSON.stringify(gj,null,2)],{type:'application/geo+json'}));
+        function norm(e) {
+          const lat = e.latitude ?? (Array.isArray(e.coordonnees)?e.coordonnees[0]:null);
+          const lon = e.longitude ?? (Array.isArray(e.coordonnees)?e.coordonnees[1]:null);
+          return {
+            nom: e.nom_entreprise || e.nom || '',
+            siren: e.siren || '',
+            siret: e.siret || '',
+            naf: e.activite_principale || '',
+            libelle_naf: e.libelle_activite_principale || e.libelle_naf || '',
+            date_creation: e.date_creation || '',
+            adresse: e.adresse || e.adresse_ligne_1 || '',
+            cp: e.code_postal || '',
+            commune: e.commune || '',
+            lat: (lat != null ? +lat : null),
+            lon: (lon != null ? +lon : null),
+            epci: e.epci || '',
+            departement: e.departement || ''
+          };
+        }
+        async function fetchAll(epci, { terme='', naf='', etat='active', softLimit=2000 } = {}) {
+          if (!epci) throw new Error('EPCI requis');
+          if (state.abortCtrl) state.abortCtrl.abort();
+          state.abortCtrl = new AbortController();
+
+          const cacheKey = keyFor(epci, terme, naf, etat);
+          const cached = localStorage.getItem(cacheKey);
+          if (cached) {
+            try { state.items = JSON.parse(cached); return { fromCache: true, total: state.items.length }; } catch {}
+          }
+
+          const items = []; const seen = new Set();
+          let page = 1;
+          while (true) {
+            const url = new URL('https://recherche-entreprises.api.gouv.fr/search');
+            url.searchParams.set('epci', epci);
+            if (etat) url.searchParams.set('etat', etat);
+            if (terme) url.searchParams.set('terme', terme);
+            if (naf) url.searchParams.set('naf', naf);
+            url.searchParams.set('per_page', String(MAX_PER_PAGE));
+            url.searchParams.set('page', String(page));
+
+            document.getElementById('aeState').textContent = `Chargement page ${page}…`;
+            const r = await fetch(url.toString(), { signal: state.abortCtrl.signal });
+            if (!r.ok) throw new Error(`API ${r.status}`);
+            const j = await r.json();
+
+            const batch = Array.isArray(j.results) ? j.results : [];
+            if (!batch.length) break;
+
+            for (const raw of batch) {
+              const n = norm(raw);
+              const key = n.siret || `${n.siren}|${n.nom}|${n.commune}`;
+              if (seen.has(key)) continue;
+              seen.add(key);
+              items.push(n);
+              if (items.length >= softLimit) break;
+            }
+            if (items.length >= softLimit) break;
+            if (batch.length < MAX_PER_PAGE) break;
+            page++;
+            await new Promise(res => setTimeout(res, 150));
+          }
+
+          state.items = items;
+          document.getElementById('aeState').textContent = `Terminé : ${items.length} entrées (cache)`;
+          try { localStorage.setItem(cacheKey, JSON.stringify(items)); } catch {}
+          return { fromCache:false, total:items.length };
+        }
+        function ensureLayer(){ if(!state.layer){ state.layer=L.layerGroup().addTo(map); } else if(!map.hasLayer(state.layer)){ state.layer.addTo(map); } }
+        function clearLayer(){ if(state.layer){ state.layer.clearLayers(); } }
+
+        function insidePerimeter(e){
+          if(!window.vizCircle) return false;
+          const center = vizCircle.getLatLng();
+          const R = (vizCircle.getRadius()||0)/1000;
+          if(e.lat==null||e.lon==null) return false;
+          const d = haversineKm({lat:center.lat,lng:center.lng},{lat:e.lat,lng:e.lon});
+          return d <= R + eps;
+        }
+        function addToMap({ filterInside=false } = {}){
+          ensureLayer(); clearLayer();
+          let all=0, plotted=0, inside=0;
+          for(const e of state.items){
+            all++;
+            if(e.lat==null||e.lon==null) continue;
+            const isIn = insidePerimeter(e);
+            if(filterInside && !isIn) continue;
+
+            const m=L.circleMarker([e.lat,e.lon],{
+              radius:5,color:isIn?'#16a34a':'#1f2937',weight:2,fillColor:isIn?'#16a34a':'#374151',fillOpacity:0.35
+            });
+            const annuaireUrl = `https://annuaire-entreprises.data.gouv.fr/etablissement/${encodeURIComponent(e.siret||e.siren)}`;
+            const wrap=document.createElement('div');
+            wrap.innerHTML=`
+              <strong>${esc(e.nom)||'(entreprise)'}</strong><br>
+              ${esc(e.commune||'')} ${esc(e.cp||'')}<br>
+              NAF: ${esc(e.naf||'')} ${e.libelle_naf?'– '+esc(e.libelle_naf):''}<br>
+              <a href="${annuaireUrl}" target="_blank" rel="noopener">Voir sur Annuaire</a><br>
+              ${isIn?'<div style="color:#16a34a;margin:4px 0">Dans le périmètre ACC</div>':''}
+            `;
+            const btn=document.createElement('button'); btn.className='btn'; btn.textContent='Ajouter comme consommateur';
+            btn.onclick=()=>{ if(typeof addParticipant==='function'){ addParticipant(e.lat, e.lon, 'consumer', e.nom||'Entreprise'); } };
+            wrap.appendChild(btn);
+            m.bindPopup(wrap);
+            state.layer.addLayer(m);
+            plotted++; if(isIn) inside++;
+          }
+          document.getElementById('aeState').textContent = `Carte : ${plotted} placées (${inside} dans le périmètre) / ${all} au total`;
+          return {all,plotted,inside};
+        }
+
+        function exportCSV({onlyInside=false}={}){
+          const header=[
+            'nom_entreprise','siren','siret','naf','libelle_naf',
+            'date_creation','adresse','code_postal','commune','lat','lon','epci','departement','dans_perimetre'
+          ];
+          const rows = state.items.map(e=>{
+            const inP = insidePerimeter(e);
+            if(onlyInside && !inP) return null;
+            return [
+              e.nom, e.siren, e.siret, e.naf, e.libelle_naf,
+              e.date_creation, e.adresse, e.cp, e.commune, e.lat, e.lon, e.epci, e.departement,
+              inP?1:0
+            ].map(v=>`"${(v??'').toString().replace(/"/g,'""')}"`).join(';');
+          }).filter(Boolean);
+          const csv=[header.join(';'),...rows].join('\n');
+          const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+          const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='entreprises_epci.csv'; a.click(); URL.revokeObjectURL(a.href);
+        }
+        function exportGeoJSON({onlyInside=false}={}){
+          const feats = state.items.map(e=>{
+            const inP = insidePerimeter(e);
+            if(onlyInside && !inP) return null;
+            if(e.lat==null||e.lon==null) return null;
+            return {
+              type:'Feature',
+              geometry:{type:'Point',coordinates:[e.lon,e.lat]},
+              properties:{
+                nom_entreprise:e.nom, siren:e.siren, siret:e.siret, naf:e.naf, libelle_naf:e.libelle_naf,
+                date_creation:e.date_creation, adresse:e.adresse, code_postal:e.cp, commune:e.commune,
+                epci:e.epci, departement:e.departement, inside:inP?true:false
+              }
+            };
+          }).filter(Boolean);
+          const gj={type:'FeatureCollection',features:feats};
+          const blob=new Blob([JSON.stringify(gj,null,2)],{type:'application/json'});
+          const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='entreprises_epci.geojson'; a.click(); URL.revokeObjectURL(a.href);
+        }
+        function clearCache(epci, terme, naf, etat){
+          const k=keyFor(epci, terme, naf, etat||'active'); localStorage.removeItem(k);
+          document.getElementById('aeState').textContent='Cache vidé';
+        }
+        function cancel(){ if(state.abortCtrl){ state.abortCtrl.abort(); state.abortCtrl=null; document.getElementById('aeState').textContent='Chargement annulé'; } }
+
+        return {fetchAll, addToMap, exportCSV, exportGeoJSON, clearCache, cancel};
+      })();
+
+      // AE – bindings UI
+      const $ = id => document.getElementById(id);
+      $('aeFetch').onclick = async ()=>{
+        const epci=$('aeEpci').value.trim();
+        const terme=$('aeTerm').value.trim();
+        const naf=$('aeNaf').value.trim();
+        const etat=$('aeEtat').value;
+        const softLimit=Math.max(25, parseInt($('aeSoftLimit').value||'2000',10));
+        $('aeState').textContent = 'Démarrage…';
+        try{
+          const res=await AE.fetchAll(epci,{terme,naf,etat,softLimit});
+          $('aeState').textContent = `${res.fromCache?'Depuis cache':'Chargement API'} : ${res.total} entrées`;
+        }catch(e){
+          $('aeState').textContent = 'Erreur: '+(e.message||e);
+        }
       };
-      document.getElementById('clearCircle').onclick = ()=>{ clearVizCircle(); updatePoiInRange(); tSet(statusEl,'Périmètre supprimé.'); };
+      $('aeCancel').onclick = ()=> AE.cancel();
+      $('aeShowAll').onclick = ()=> {
+        const insideOnly = $('aeInsideOnly').checked;
+        const s = AE.addToMap({filterInside: insideOnly});
+        // focus si on a placé des points
+        if (s.plotted>0) {
+          const layerBounds = (function() {
+            const tmp = [];
+            AE.addToMap({filterInside: insideOnly}); // ensure layer exists
+            // récupérer toutes les couches:
+            const group = map._layers;
+            // simplifié: on fit sur toutes les couches du map pour éviter itérations privées
+            return map.getBounds();
+          })();
+        }
+      };
+      $('aeExportCsvAll').onclick = ()=> AE.exportCSV({onlyInside:false});
+      $('aeExportCsvIn').onclick  = ()=> AE.exportCSV({onlyInside:true});
+      $('aeExportGjAll').onclick  = ()=> AE.exportGeoJSON({onlyInside:false});
+      $('aeExportGjIn').onclick   = ()=> AE.exportGeoJSON({onlyInside:true});
+      $('aeClearCache').onclick   = ()=> AE.clearCache($('aeEpci').value.trim(), $('aeTerm').value.trim(), $('aeNaf').value.trim(), $('aeEtat').value);
 
       // Lancer
+      try{ initDefaultProducer(); }catch(_){ }
       layout();
-      tSet(statusEl,'Carte prête. Cliquez sur la carte pour ajouter des participants, puis ajustez D (2/10/20/perso).');
+      tSet(statusEl,'Prêt.');
+
+      // Diagnostics visibles
       window.addEventListener('error', e=>{ tSet(statusEl,'Erreur JS : '+e.message); });
       window.addEventListener('unhandledrejection', e=>{ tSet(statusEl,'Erreur Promesse : '+(e.reason?.message||e.reason)); });
     }
