@@ -1,617 +1,716 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>ACC PV – Périmètre + Annuaire de prospection</title>
-<meta name="theme-color" content="#37C3AF">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
-<style>
-:root{--ink:#1c1c1c;--line:#e6eaea;--muted:#f7f8f8;--ok:#0f766e;--bad:#b91c1c;--brand:#37C3AF}
-html,body{height:100%}
-body{margin:0;font-family:'Open Sans',system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;color:var(--ink);background:#fff}
-header.slim{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:6px 8px}
-.brand{display:flex;align-items:center;gap:8px}
-.brand svg{height:26px;width:auto;border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
-.brand .name{font-family:'Montserrat',sans-serif;font-weight:700;letter-spacing:.3px}
-.controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;width:100%}
-.group{display:flex;align-items:center;gap:8px}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#fff}
-.dot{width:10px;height:10px;border-radius:50%}
-.prod{background:#6D28D9}.cons{background:#2e86de}.company{background:#0ea5e9}
-.btn{padding:6px 8px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#fff;cursor:pointer;font-weight:700}
-.btn.icon{padding:6px 8px;min-width:36px;display:inline-flex;align-items:center;justify-content:center}
-.btn.secondary{background:#fff;color:#0f4f47;border-color:var(--brand)}
-.btn.active{background:#0f4f47;border-color:#0f4f47}
-.btn[disabled]{opacity:.6;cursor:not-allowed}
-select,input[type="number"],input[type="text"]{border:1px solid var(--line);border-radius:8px;padding:6px 8px}
-#status{margin:6px 8px 0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;font-size:14px}
-#status.ok{background:rgba(55,195,175,.08);border-color:rgba(55,195,175,.45);color:#116a60}
-#status.ko{background:#fff5f3;border-color:#f6d2cc}
-#map{min-height:460px;margin:8px;border:1px solid var(--line);border-radius:12px;position:relative}
-.legend-overlay{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;gap:10px;align-items:center;font-size:12px}
-.legend-overlay .item{display:flex;align-items:center;gap:6px}
-#drawer{position:fixed;inset:auto 0 0 auto;top:0;height:100vh;width:420px;max-width:95vw;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.06);transform:translateX(100%);transition:.25s ease;z-index:5000;display:flex;flex-direction:column}
-#drawer.open{transform:none}
-#drawer header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line)}
-#drawer h2{font-family:'Montserrat',sans-serif;font-size:16px;margin:0}
-#drawer .content{padding:12px;overflow:auto}
-fieldset{border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:10px}
-legend{padding:0 6px;color:#475569;font-size:12px}
-textarea{width:100%;min-height:80px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:8px}
-.small{font-size:12px;color:#64748b}
-.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-.soft{background:#f8fafc;border-radius:8px;padding:6px}
-.tl-table{width:100%;border-collapse:collapse;font-size:13px}
-.tl-table th,.tl-table td{border:1px solid var(--line);padding:6px;vertical-align:top}
-.tl-table th{background:#f9fafb;text-align:left}
-.center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.print-header{display:none}
-@media print{
-  @page { size: A4 landscape; margin: 12mm; }
-  header.slim, #drawer, #status{ display:none !important; }
-  body{ background:#fff; }
-  .print-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
-  .print-header .left{display:flex;align-items:center;gap:8px}
-  .print-header .brand svg{height:26px}
-  .print-header .title{font-family:'Montserrat',sans-serif;font-weight:700}
-  #map{ height:170mm !important; min-height:170mm !important; margin:0; border:0 }
-  .leaflet-pane, .leaflet-map-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow{ transform:none !important; animation:none !important; }
-  .leaflet-container{ background:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .leaflet-tile{ filter:none !important; }
-  .legend-overlay{ display:none; }
-}
-@media (max-width: 720px){ header.slim{flex-wrap:wrap} .controls{gap:6px} }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ACC Prospection – Isère</title>
+
+  <!-- Leaflet CSS (+ fallback) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" crossorigin="anonymous" referrerpolicy="no-referrer" />
+  <!-- Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;700&family=Open+Sans:wght@400;600&display=swap" rel="stylesheet">
+  <meta name="theme-color" content="#37C3AF">
+
+  <style>
+    :root{--ink:#1c1c1c;--line:#e6eaea;--muted:#f7f8f8;--ok:#0f766e;--bad:#b91c1c;--brand:#37C3AF}
+    html,body{height:100%}
+    body{margin:0;font-family:'Open Sans',system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;color:var(--ink);background:#fff}
+
+    /* Header */
+    header.slim{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);padding:6px 8px}
+    .brand{display:flex;align-items:center;gap:8px}
+    .brand svg{height:26px;width:auto;border-radius:6px;box-shadow:0 0 0 1px rgba(0,0,0,.06)}
+    .brand .name{font-family:'Montserrat',sans-serif;font-weight:700;letter-spacing:.3px}
+    .controls{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:space-between;width:100%}
+    .group{display:flex;align-items:center;gap:8px}
+    .chip{display:inline-flex;align-items:center;gap:6px;padding:4px 8px;border:1px solid var(--line);border-radius:999px;background:#fff}
+    .dot{width:10px;height:10px;border-radius:50%}
+    .prod{background:#6D28D9}.cons{background:#2e86de}
+
+    .btn{padding:6px 8px;border:1px solid var(--brand);border-radius:10px;background:var(--brand);color:#fff;cursor:pointer;font-weight:700}
+    .btn.icon{padding:6px 8px;min-width:36px;display:inline-flex;align-items:center;justify-content:center}
+    .btn.secondary{background:#fff;color:#0f4f47;border-color:var(--brand)}
+    select,input[type="number"],input[type="text"]{border:1px solid var(--line);border-radius:8px;padding:6px 8px}
+
+    #status{margin:6px 8px 0;border:1px solid var(--line);border-radius:10px;padding:8px;background:#fff;font-size:14px}
+    #status.ok{background:rgba(55,195,175,.08);border-color:rgba(55,195,175,.45);color:#116a60}
+    #status.ko{background:#fff5f3;border-color:#f6d2cc}
+    #map{min-height:420px;margin:8px;border:1px solid var(--line);border-radius:12px;position:relative}
+
+    /* Drawer (Options) */
+    #drawer{position:fixed;inset:auto 0 0 auto;top:0;height:100vh;width:420px;max-width:92vw;background:#fff;border-left:1px solid var(--line);box-shadow:-8px 0 24px rgba(0,0,0,.06);transform:translateX(100%);transition:.25s ease;z-index:5000;display:flex;flex-direction:column}
+    #drawer.open{transform:none}
+    #drawer header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid var(--line)}
+    #drawer h2{font-family:'Montserrat',sans-serif;font-size:16px;margin:0}
+    #drawer .content{padding:12px;overflow:auto}
+    fieldset{border:1px solid var(--line);border-radius:10px;margin:10px 0;padding:10px}
+    legend{padding:0 6px;color:#475569;font-size:12px}
+    textarea{width:100%;min-height:80px;resize:vertical;border:1px solid var(--line);border-radius:8px;padding:8px}
+    .small{font-size:12px;color:#64748b}
+    .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+    .muted{color:#64748b}
+
+    /* Légende carte (écran) */
+    .legend-overlay{position:absolute;bottom:10px;left:10px;background:rgba(255,255,255,.9);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;gap:10px;align-items:center;font-size:12px}
+    .legend-overlay .item{display:flex;align-items:center;gap:6px}
+
+    /* Échelle 1:n */
+    .leaflet-control.ratio-control{background:rgba(255,255,255,.95);border:1px solid var(--line);border-radius:8px;padding:4px 8px;font-size:12px;z-index:1000}
+
+    /* Périmètre tooltip */
+    .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+
+    /* Prospection – résultats */
+    table.list{width:100%;border-collapse:collapse;font-size:13px}
+    table.list th, table.list td{border:1px solid var(--line);padding:6px}
+    table.list th{background:#f9fafb;text-align:left;position:sticky;top:0;z-index:1}
+
+    /* PRINT */
+    .print-header{display:none}
+    .print-legend{display:none}
+    @media print{
+      @page { size: A4 landscape; margin: 12mm; }
+      header.slim, #drawer, #status{ display:none !important; }
+      body{ background:#fff; }
+      .print-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+      .print-header .left{display:flex;align-items:center;gap:8px}
+      .print-header .brand svg{height:26px}
+      .print-header .title{font-family:'Montserrat',sans-serif;font-weight:700}
+      #map{ height:170mm !important; min-height:170mm !important; margin:0; border:0 }
+      .leaflet-pane, .leaflet-map-pane, .leaflet-tile, .leaflet-marker-icon, .leaflet-marker-shadow{ transform:none !important; animation:none !important; }
+      .leaflet-container{ background:#fff !important; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
+      .leaflet-tile{ filter:none !important; }
+      .legend-overlay{ display:none; }
+      .print-legend{display:grid;grid-template-columns:auto 1fr;gap:4px 8px;margin-top:8px;font-size:12px}
+    }
+
+    /* Bottom sheet mobile */
+    @media (max-width: 768px) {
+      #drawer{
+        inset:auto 0 0 0;height:68vh;max-width:100%;
+        border-left:0;border-top:1px solid var(--line);
+        border-radius:16px 16px 0 0;box-shadow:0 -12px 24px rgba(0,0,0,.08);
+        transform:translateY(100%);
+      }
+      #drawer.open{transform:translateY(0)}
+      #drawer .content{max-height:calc(68vh - 48px);padding:12px 12px 88px;overflow:auto;-webkit-overflow-scrolling:touch}
+    }
+    html.loading, body.loading{cursor:progress}
+    button, .btn, input, select {touch-action:manipulation}
+  </style>
 </head>
 <body>
-<header class="slim">
-  <div class="brand" role="img" aria-label="Echome Énergies">
-    <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
-      <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
-    </svg>
-    <span class="name">Echome Énergies</span>
-  </div>
-
-  <div class="controls">
-    <div class="group" role="radiogroup" aria-label="Type de point ACC">
-      <label class="chip"><input type="radio" name="ptype" value="consumer" checked> <span class="dot cons"></span>Cons.</label>
-      <label class="chip"><input type="radio" name="ptype" value="producer"> <span class="dot prod"></span>Prod.</label>
+  <!-- BARRE -->
+  <header class="slim">
+    <div class="brand" role="img" aria-label="Echome Énergies">
+      <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
+      </svg>
+      <span class="name">Echome Énergies — ACC Prospection Isère</span>
     </div>
-    <div class="group" aria-label="Diamètre">
-      <label class="small">Diamètre :</label>
-      <select id="limitSel" aria-label="Diamètre autorisé">
-        <option value="2">2 km</option>
-        <option value="10">10 km</option>
-        <option value="20" selected>20 km</option>
-        <option value="custom">Perso</option>
-      </select>
-      <input id="customKm" type="number" min="0" step="0.1" placeholder="km" style="width:90px;display:none" aria-label="Diamètre personnalisé">
+
+    <div class="controls">
+      <!-- Type point -->
+      <div class="group" role="radiogroup" aria-label="Type de point">
+        <label class="chip"><input type="radio" name="ptype" value="consumer" checked> <span class="dot cons"></span>Cons.</label>
+        <label class="chip"><input type="radio" name="ptype" value="producer"> <span class="dot prod"></span>Prod.</label>
+      </div>
+
+      <!-- Diamètre ACC -->
+      <div class="group" aria-label="Diamètre">
+        <label class="small">Diamètre :</label>
+        <select id="limitSel" aria-label="Diamètre autorisé">
+          <option value="2">2 km</option>
+          <option value="10">10 km</option>
+          <option value="20" selected>20 km</option>
+          <option value="custom">Perso</option>
+        </select>
+        <input id="customKm" type="number" min="0" step="0.1" placeholder="km" style="width:90px;display:none" aria-label="Diamètre personnalisé">
+      </div>
+
+      <!-- Actions -->
+      <div class="group">
+        <button id="locateBtn" class="btn icon" title="Me localiser" aria-label="Me localiser">📍</button>
+        <button id="fitBtn" class="btn icon" title="Ajuster la vue" aria-label="Ajuster la vue">🗺️</button>
+        <button id="printBtn" class="btn icon" title="Exporter en PDF" aria-label="Exporter en PDF">🖨️</button>
+        <button id="clearBtn" class="btn icon" title="Effacer les participants" aria-label="Effacer les participants">🗑️</button>
+        <button id="gearBtn" class="btn secondary" title="Options avancées" data-role="open-drawer">⚙️ Options</button>
+      </div>
     </div>
-    <div class="group">
-      <button id="locateBtn" class="btn icon" title="Me localiser">📍</button>
-      <button id="fitBtn" class="btn icon" title="Ajuster la vue">🗺️</button>
-      <button id="printBtn" class="btn icon" title="Exporter en PDF">🖨️</button>
-      <button id="clearBtn" class="btn icon" title="Effacer participants">🗑️</button>
-      <button id="gearBtn" class="btn secondary" title="Options avancées">⚙️ Options</button>
-    </div>
-  </div>
-</header>
-
-<div class="print-header" id="printHeader">
-  <div class="left brand">
-    <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
-      <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
-    </svg>
-    <span class="title">ACC PV – Périmètre + Prospection</span>
-  </div>
-  <div class="right small" id="printMeta"></div>
-</div>
-
-<div id="status" role="status" aria-live="polite">Initialisation…</div>
-<div id="map" aria-label="Carte interactive">
-  <div class="legend-overlay" aria-hidden="true">
-    <div class="item"><span class="dot prod"></span>Producteur</div>
-    <div class="item"><span class="dot cons"></span>Consommateur</div>
-    <div class="item"><span class="dot company"></span>Entreprise (prospection)</div>
-  </div>
-</div>
-
-<aside id="drawer" aria-hidden="true" aria-label="Options avancées">
-  <header>
-    <h2>Options avancées</h2>
-    <button id="drawerClose" class="btn secondary">Fermer</button>
   </header>
-  <div class="content">
-    <fieldset>
-      <legend>Projet</legend>
-      <div class="row">
-        <label class="small">Nom du projet :</label>
-        <input id="projName" type="text" placeholder="Projet 1" style="flex:1">
-      </div>
-      <div class="row" style="margin-top:6px">
-        <button id="saveLocal" class="btn">Enregistrer (local)</button>
-        <select id="projList" style="flex:1" aria-label="Projets sauvegardés"></select>
-        <button id="loadLocal" class="btn secondary">Charger</button>
-        <button id="delLocal" class="btn secondary">Supprimer</button>
-      </div>
-      <div class="row" style="margin-top:6px">
-        <button id="exportJson" class="btn">Exporter fichier</button>
-        <input id="importJson" type="file" accept="application/json">
-      </div>
-    </fieldset>
 
-    <fieldset>
-      <legend>Import rapide (participants ACC)</legend>
-      <div class="small">Format : Nom;Lat;Lon;Type — Types : consumer / producer</div>
-      <textarea id="bulk" placeholder="Usine A;45.76;4.84;producer&#10;Collège B;45.77;4.86;consumer"></textarea>
-      <div style="margin-top:8px"><button id="importBtn" class="btn">Importer</button></div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Rechercher une adresse</legend>
-      <div style="display:flex;gap:6px;align-items:center">
-        <input id="searchQ" type="text" placeholder="Adresse, commune, code postal" style="flex:1" aria-label="Rechercher une adresse">
-        <button id="searchBtn" class="btn">Rechercher</button>
-      </div>
-      <div id="searchResults" class="small" aria-live="polite" style="margin-top:6px"></div>
-    </fieldset>
-
-    <fieldset>
-      <legend>Annuaire de prospection ACC</legend>
-      <div class="small soft">API publique Recherche-Entreprises. Profil = filtre **local** sur le code NAF (préfixes).</div>
-
-      <div class="row" style="margin:6px 0">
-        <label class="small">Profils rapides :</label>
-        <button class="btn secondary ae-filter" data-f="public">🏛️ Public</button>
-        <button class="btn secondary ae-filter" data-f="sante">🏥 Santé</button>
-        <button class="btn secondary ae-filter" data-f="artisanat">🛠️ Artisanat</button>
-        <button class="btn secondary ae-filter" data-f="industrie">🏭 PME</button>
-        <button class="btn secondary ae-filter active" data-f="tous">🌐 Tous</button>
-      </div>
-
-      <div class="row" style="margin-bottom:6px">
-        <label class="small">Code EPCI :</label>
-        <input id="aeEpci" type="text" value="243801024" style="width:160px">
-        <button id="aeLoad" class="btn">Charger</button>
-        <button id="aeExport" class="btn secondary">Exporter CSV (liste)</button>
-        <button id="aeClearLayer" class="btn secondary">Effacer points carte</button>
-      </div>
-
-      <div id="companiesWrap" class="small" style="max-height:320px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:4px">—</div>
-    </fieldset>
-
-    <div class="small" style="margin-top:10px">Participants : <span id="count">Aucun point.</span></div>
+  <!-- En-tête impression -->
+  <div class="print-header" id="printHeader">
+    <div class="left brand">
+      <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#ffffff">ECHOME</text>
+      </svg>
+      <span class="title">ACC – Prospection Isère (D/2)</span>
+    </div>
+    <div class="right small" id="printMeta"></div>
   </div>
-</aside>
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
-<script>
-(function ensureLeaflet(cb){ if(window.L){ cb(); return; }
-  var s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
-  s.crossOrigin='anonymous'; s.referrerPolicy='no-referrer'; s.onload=cb;
-  s.onerror=function(){ document.getElementById('status').textContent='Erreur : Leaflet bloqué.'; };
-  document.head.appendChild(s);
-})(initApp);
+  <div id="status" role="status" aria-live="polite">Initialisation…</div>
+  <div id="map" aria-label="Carte interactive">
+    <div class="legend-overlay" aria-hidden="true">
+      <div class="item"><span class="dot prod"></span>Producteur</div>
+      <div class="item"><span class="dot cons"></span>Consommateur</div>
+    </div>
+  </div>
 
-function initApp(){
-  const statusEl = document.getElementById('status');
-  const mapEl = document.getElementById('map');
-  const esc = s => String(s||'').replace(/[&<>\"']/g, c=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
-  const tSet = (el,txt,cls='')=>{ el.className=cls; el.textContent=txt; };
-  const hSet = (el,html,cls='')=>{ el.className=cls; el.innerHTML=html; };
-  const toRad = d => d*Math.PI/180;
-  const fmtDate=(d)=>{ const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
-  function haversineKm(a,b){ const R=6371; const dLat=toRad(b.lat-a.lat), dLon=toRad(b.lng-a.lng);
-    const lat1=toRad(a.lat), lat2=toRad(b.lat);
-    const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
+  <!-- Drawer -->
+  <aside id="drawer" aria-hidden="true" aria-label="Options avancées">
+    <header>
+      <h2>Options / Prospection</h2>
+      <button id="drawerClose" class="btn secondary">Fermer</button>
+    </header>
+    <div class="content">
+      <fieldset>
+        <legend>Projet</legend>
+        <div class="row">
+          <label class="small">Nom du projet :</label>
+          <input id="projName" type="text" placeholder="Projet 1" style="flex:1">
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="saveLocal" class="btn">Enregistrer (local)</button>
+          <select id="projList" style="flex:1" aria-label="Projets sauvegardés"></select>
+          <button id="loadLocal" class="btn secondary">Charger</button>
+          <button id="delLocal" class="btn secondary">Supprimer</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="exportJson" class="btn">Exporter fichier</button>
+          <input id="importJson" type="file" accept="application/json">
+        </div>
+      </fieldset>
 
-  // MEC (cercle minimal)
-  function projectLocal(pointsLL){ const lat0=pointsLL.reduce((s,p)=>s+p.lat,0)/pointsLL.length; const lon0=pointsLL.reduce((s,p)=>s+p.lng,0)/pointsLL.length;
-    const P=pointsLL.map(p=>({x:(p.lng-lon0)*111.32*Math.cos(lat0*Math.PI/180), y:(p.lat-lat0)*111.32})); return {lat0,lon0,P}; }
-  function unprojectLocal(lat0,lon0,x,y){ return {lat:lat0 + y/111.32, lng: lon0 + x/(111.32*Math.cos(lat0*Math.PI/180))}; }
-  function dist2(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
-  function circleBy2(a,b){ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,r:Math.sqrt(dist2(a,b))/2}; }
-  function circleBy3(a,b,c){ const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y; const E=A*(a.x+b.x)+B*(a.y+b.y); const F=C*(a.x+c.x)+D*(a.y+c.y); const G=2*(A*(c.y-b.y)-B*(c.x-b.x)); if(Math.abs(G)<1e-12) return null; const x=(D*E-B*F)/G, y=(A*F-C*E)/G, r=Math.hypot(x-a.x,y-a.y); return {x,y,r}; }
-  function inCircle(c,p){ return Math.hypot(c.x-p.x,c.y-p.y) <= c.r + 1e-9; }
-  function minimalEnclosingCircle(pointsLL){
-    if(pointsLL.length===0) return null; if(pointsLL.length===1) return {center:pointsLL[0], r:0};
-    const {lat0,lon0,P}=projectLocal(pointsLL);
-    let best=null;
-    for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ const c=circleBy2(P[i],P[j]); if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c; }
-    for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) for(let k=j+1;k<P.length;k++){ const c=circleBy3(P[i],P[j],P[k]); if(!c) continue; if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c; }
-    if(!best){ let max=-1,a=-1,b=-1; for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ const d=dist2(P[i],P[j]); if(d>max){max=d;a=i;b=j;} } best=circleBy2(P[a],P[b]); }
-    const center=unprojectLocal(lat0,lon0,best.x,best.y); return {center, r:best.r};
-  }
+      <fieldset>
+        <legend>Import rapide (participants ACC)</legend>
+        <div class="small">Format : Nom;Lat;Lon;Type — Types : consumer / producer</div>
+        <textarea id="bulk" placeholder="Usine A;45.76;4.84;producer&#10;Collège B;45.77;4.86;consumer"></textarea>
+        <div style="margin-top:8px"><button id="importBtn" class="btn">Importer</button></div>
+      </fieldset>
 
-  // Carte
-  const map = L.map('map', { zoomControl:true }).setView([45.3, 5.6], 8);
-  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© OpenStreetMap' });
-  const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© Carto, © OpenStreetMap' });
-  osm.on('tileerror', ()=>{ if(!map.hasLayer(carto)) carto.addTo(map); if(map.hasLayer(osm)) map.removeLayer(osm); tSet(statusEl,'Fond OSM bloqué → Carto Light.'); });
-  osm.addTo(map);
-  L.control.scale({imperial:false, metric:true, maxWidth:120}).addTo(map);
+      <fieldset>
+        <legend>Prospection (entreprises actives)</legend>
+        <div class="small">Source : API publique <code>recherche-entreprises.api.gouv.fr</code> — Pagination auto — Filtre “dans le cercle (D/2)”.</div>
+        <form id="prospectForm" class="row" style="margin-top:8px">
+          <div class="row" style="width:100%">
+            <label class="small" style="min-width:120px">Section NAF :</label>
+            <select name="naf" style="flex:1">
+              <option value="">(toutes)</option>
+              <option value="C">Industrie (C)</option>
+              <option value="G">Commerce (G)</option>
+              <option value="I">Hébergement & Restauration (I)</option>
+              <option value="J">Information & Communication (J)</option>
+              <option value="L">Immobilier (L)</option>
+              <option value="M">Sciences & Techniques (M)</option>
+              <option value="N">Services administratifs (N)</option>
+              <option value="P">Éducation (P)</option>
+              <option value="Q">Santé (Q)</option>
+              <option value="R">Arts & Spectacles (R)</option>
+              <option value="S">Autres services (S)</option>
+            </select>
+          </div>
+          <div class="row" style="width:100%">
+            <label class="small" style="min-width:120px">Effectif min. :</label>
+            <select name="tranche_effectif_salarie" style="flex:1">
+              <option value="">(indifférent)</option>
+              <option value="EFF_2">3–5</option>
+              <option value="EFF_3">6–9</option>
+              <option value="EFF_4">10–19</option>
+              <option value="EFF_5">20–49</option>
+              <option value="EFF_6">50–99</option>
+              <option value="EFF_7">100–199</option>
+              <option value="EFF_8">200–249</option>
+              <option value="EFF_9">250–499</option>
+              <option value="EFF_A">500–999</option>
+              <option value="EFF_B">1000–1999</option>
+              <option value="EFF_C">2000 et +</option>
+            </select>
+          </div>
+          <div class="row" style="width:100%">
+            <label class="small"><input type="checkbox" name="exclude_micro"> Exclure micro-entreprises</label>
+            <label class="small"><input type="checkbox" name="exclude_asso"> Exclure associations</label>
+          </div>
+          <div class="row" style="width:100%">
+            <label class="small" style="min-width:120px">EPCI (option) :</label>
+            <input name="epci" type="text" placeholder="ex. 243801024" style="flex:1">
+          </div>
+          <div class="row" style="width:100%;gap:8px;margin-top:6px">
+            <button type="button" id="prospectSearch" class="btn">Chercher dans le périmètre</button>
+            <button type="button" id="prospectCancel" class="btn secondary">Annuler</button>
+            <button type="button" id="prospectExportCsv" class="btn secondary" disabled>Exporter CSV</button>
+            <button type="button" id="prospectExportGeo" class="btn secondary" disabled>Exporter GeoJSON</button>
+          </div>
+          <div class="small" id="prospectProgress" style="margin-top:6px;color:#0f4f47"></div>
+        </form>
+        <div id="prospectResults" style="margin-top:8px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:6px"></div>
+        <div class="small muted" style="margin-top:6px">
+          Conseil : précisez une section NAF et/ou un EPCI pour réduire la pagination. L’outil filtre ensuite “dans le cercle (D/2)”.
+        </div>
+      </fieldset>
 
-  function layout(){ const H=document.querySelector('header.slim'); const h=Math.max(460, window.innerHeight - H.getBoundingClientRect().height - 16); mapEl.style.height=h+'px'; try{ map.invalidateSize(); }catch(_){ } }
-  window.addEventListener('resize', layout); setTimeout(layout, 50);
+      <div class="small" style="margin-top:10px">Participants : <span id="count">Aucun point.</span></div>
+      <div class="small" id="communeStat" style="margin-top:4px">Communes dans le périmètre : 0</div>
+    </div>
+  </aside>
 
-  // Couches
-  const participantLayer = L.layerGroup().addTo(map);
-  const companiesLayer = L.layerGroup().addTo(map);
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+  <script>
+    // charge Leaflet depuis CDN de secours si besoin
+    (function ensureLeaflet(cb){ if(window.L){ cb(); return; }
+      var s=document.createElement('script'); s.src='https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js';
+      s.crossOrigin='anonymous'; s.referrerPolicy='no-referrer'; s.onload=cb;
+      s.onerror=function(){ document.getElementById('status').textContent='Erreur : Leaflet bloqué.'; };
+      document.head.appendChild(s);
+    })(initApp);
 
-  // État
-  const participants=[]; let uid=0; let vizCircle=null;
-  const colors={producer:'#6D28D9', consumer:'#2e86de', company:'#0ea5e9'};
+    function initApp(){
+      const statusEl = document.getElementById('status');
+      const mapEl = document.getElementById('map');
+      const communeStatEl = document.getElementById('communeStat');
 
-  function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
-  function currentDiameter(){ const sel=document.getElementById('limitSel').value; if(sel==='custom'){ const v=parseFloat(document.getElementById('customKm').value||'0'); return (isNaN(v)||v<=0)?20:v; } return parseFloat(sel); }
-  function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.'; }
+      // ===== Utils
+      const eps=1e-9, toRad=d=>d*Math.PI/180;
+      const esc = s=> String(s||'').replace(/[&<>\"']/g, c=>({"&":"&amp;","<":"&lt;","&gt;":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
+      const tSet=(el,txt,cls='')=>{ if(!el)return; el.className=cls; el.textContent=txt; };
+      const hSet=(el,html,cls='')=>{ if(!el)return; el.className=cls; el.innerHTML=html; };
+      const fmtDate=d=>{ const p=n=>String(n).padStart(2,'0'); return `${p(d.getDate())}/${p(d.getMonth()+1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`; };
+      function haversineKm(a,b){ const R=6371; const dLat=toRad(b.lat-a.lat), dLon=toRad(b.lng-a.lng); const lat1=toRad(a.lat), lat2=toRad(b.lat); const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2; return 2*R*Math.asin(Math.sqrt(h)); }
 
-  // Participants
-  function addParticipant(lat,lng,type,name){
-    const id=++uid; const label=name || `${type} ${id}`;
-    const m=L.circleMarker([lat,lng],{radius:7,color:colors[type],weight:2,fillColor:colors[type],fillOpacity:0.3}).addTo(participantLayer);
-    const entry={id,name:label,type,lat,lng,marker:m};
-    m.bindTooltip(`${esc(label)} (${type})`);
-    m.bindPopup(makeParticipantPopup(entry));
-    m.on('contextmenu', ()=> removeParticipant(id));
-    participants.push(entry); refreshACC(true);
-  }
-  function makeParticipantPopup(entry){
-    const wrap=document.createElement('div');
-    wrap.innerHTML = `<strong>${esc(entry.name||'')}</strong><br>${esc(entry.type)}`;
-    const box=document.createElement('div'); box.style.marginTop='6px'; box.style.display='flex'; box.style.gap='6px'; box.style.flexWrap='wrap';
-    const bRen=document.createElement('button'); bRen.className='btn secondary'; bRen.textContent='Renommer';
-    bRen.onclick=()=>{ const nn=prompt('Nouveau nom :', entry.name||''); if(nn&&nn.trim()){ entry.name=nn.trim(); entry.marker.setPopupContent(makeParticipantPopup(entry)); entry.marker.bindTooltip(`${esc(entry.name)} (${entry.type})`); } };
-    const bDel=document.createElement('button'); bDel.className='btn secondary'; bDel.textContent='Supprimer';
-    bDel.onclick=()=> removeParticipant(entry.id);
-    box.appendChild(bRen); box.appendChild(bDel); wrap.appendChild(box); return wrap;
-  }
-  function removeParticipant(id){
-    const i=participants.findIndex(p=>p.id===id);
-    if(i>-1){ participantLayer.removeLayer(participants[i].marker); participants.splice(i,1); refreshACC(); }
-  }
-  map.on('click', e=> addParticipant(e.latlng.lat, e.latlng.lng, selectedType()));
-
-  // ACC cercle visuel
-  function clearVizCircle(){ if(vizCircle){ map.removeLayer(vizCircle); vizCircle=null; } }
-  function styleParticipants(center, R){
-    participants.forEach(p=>{
-      const d = haversineKm(center,{lat:p.lat,lng:p.lng});
-      const inside = d <= R + 1e-9;
-      p.marker.setStyle({
-        color: inside ? colors[p.type] : '#8b8b8b',
-        weight: inside ? 3 : 2,
-        fillColor: colors[p.type],
-        fillOpacity: inside ? 0.5 : 0.15
-      });
-    });
-  }
-  function refreshACC(autoFit=false){
-    updateCount();
-    const D=currentDiameter(); const R=D/2;
-    clearVizCircle();
-    if(!participants.length){ tSet(statusEl,'Ajoutez un producteur et des consommateurs.'); return; }
-    if(!participants.some(p=>p.type==='producer')){ tSet(statusEl,'Aucun producteur détecté.'); return; }
-
-    const mec = minimalEnclosingCircle(participants.map(p=>({lat:p.lat,lng:p.lng})));
-    if(!mec){ tSet(statusEl,'Centre libre non calculable.'); return; }
-    const pass = mec.r <= R + 1e-9;
-
-    vizCircle = L.circle([mec.center.lat,mec.center.lng],{ radius:R*1000,color:'#6D28D9',weight:2,fill:false,opacity:0.9,dashArray:'6 6' })
-      .addTo(map).bindTooltip('Centre libre (visualisation) — centre non défini',{className:'center-free-tip'});
-
-    styleParticipants(mec.center, R);
-
-    if(autoFit && participants.length>1){
-      const g=L.featureGroup(participants.map(p=>p.marker));
-      map.fitBounds(g.getBounds().pad(0.25));
-    }
-
-    const outside = participants.filter(p=> haversineKm(mec.center,{lat:p.lat,lng:p.lng}) > R + 1e-9).map(p=> p.name||p.type);
-    if(pass) hSet(statusEl, `<strong>Conforme</strong> — D=${esc(String(D))} km · r*=${esc(mec.r.toFixed(2))} km ≤ D/2=${esc(R.toFixed(2))} km.`, 'ok');
-    else hSet(statusEl, `<strong>Non conforme</strong> — D=${esc(String(D))} km · r*=${esc(mec.r.toFixed(2))} km > D/2=${esc(R.toFixed(2))} km · Points limitants : ${outside.map(esc).join(', ')||'—'}`, 'ko');
-  }
-
-  // UI top bar
-  document.getElementById('limitSel').addEventListener('change', (e)=>{ const v=e.target.value; const custom=document.getElementById('customKm'); custom.style.display=(v==='custom')?'inline-block':'none'; refreshACC(); });
-  document.getElementById('customKm').addEventListener('input', refreshACC);
-  document.getElementById('clearBtn').onclick = ()=>{ participants.slice().forEach(p=> removeParticipant(p.id)); };
-  document.getElementById('fitBtn').onclick = ()=>{ if(!participants.length) return; const g=L.featureGroup(participants.map(p=>p.marker)); map.fitBounds(g.getBounds().pad(0.25)); };
-
-  // Localisation
-  let myMarker=null, myAccCircle=null;
-  function clearMyLoc(){ if(myMarker){map.removeLayer(myMarker); myMarker=null;} if(myAccCircle){map.removeLayer(myAccCircle); myAccCircle=null;} }
-  document.getElementById('locateBtn').addEventListener('click', ()=>{
-    if(!navigator.geolocation){ tSet(statusEl,'Géolocalisation non supportée.'); return; }
-    navigator.geolocation.getCurrentPosition(pos=>{
-      const lat=pos.coords.latitude, lng=pos.coords.longitude, acc=pos.coords.accuracy||50;
-      clearMyLoc();
-      const myIcon=L.divIcon({className:'myloc-pin', html:`<svg width="28" height="28" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M16 2C10.477 2 6 6.477 6 12c0 7 10 18 10 18s10-11 10-18C26 6.477 21.523 2 16 2z" fill="#111827"/><circle cx="16" cy="12" r="5" fill="#34D399"/></svg>`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-28]});
-      myMarker=L.marker([lat,lng],{icon:myIcon,zIndexOffset:1000}).addTo(map).bindTooltip('Vous êtes ici');
-      myAccCircle=L.circle([lat,lng],{radius:acc,color:'#34D399',weight:1,opacity:0.5,fillOpacity:0.06}).addTo(map);
-      map.setView([lat,lng], 15);
-      tSet(statusEl,`Localisé (~±${Math.round(acc)} m).`);
-    }, ()=> tSet(statusEl,'Géolocalisation refusée / indisponible.'), {enableHighAccuracy:true, timeout:8000, maximumAge:30000});
-  });
-
-  // Drawer
-  const drawer = document.getElementById('drawer');
-  document.getElementById('gearBtn').onclick = ()=>{ refreshProjectList(); drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); };
-  document.getElementById('drawerClose').onclick = ()=>{ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); };
-
-  // Projet save/load
-  function captureState(){ return {
-    name: (document.getElementById('projName').value||'Projet 1').trim()||'Projet 1',
-    settings: { diameterSel: document.getElementById('limitSel').value, customKm: document.getElementById('customKm').value },
-    participants: participants.map(p=>({name:p.name, lat:p.lat, lng:p.lng, type:p.type}))
-  }; }
-  function applyState(st){
-    participants.slice().forEach(p=> removeParticipant(p.id));
-    document.getElementById('projName').value = st.name || 'Projet';
-    document.getElementById('limitSel').value = st.settings?.diameterSel || '20';
-    document.getElementById('customKm').value = st.settings?.customKm || '';
-    document.getElementById('customKm').style.display = (document.getElementById('limitSel').value==='custom')?'inline-block':'none';
-    (st.participants||[]).forEach(p=> addParticipant(p.lat, p.lng, p.type, p.name));
-    refreshACC(true);
-  }
-  function lsKey(name){ return 'acc_project:'+name; }
-  function refreshProjectList(){ const sel=document.getElementById('projList'); const keys=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith('acc_project:')) keys.push(k.slice('acc_project:'.length)); } keys.sort((a,b)=>a.localeCompare(b)); sel.innerHTML=''; keys.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); }); }
-  document.getElementById('saveLocal').onclick = ()=>{ const st=captureState(); localStorage.setItem(lsKey(st.name), JSON.stringify(st)); refreshProjectList(); tSet(statusEl,'Projet enregistré (local).'); };
-  document.getElementById('loadLocal').onclick = ()=>{ const sel=document.getElementById('projList'); const n=sel.value; if(!n) return; try{ const st=JSON.parse(localStorage.getItem(lsKey(n))); if(st) applyState(st); tSet(statusEl,'Projet chargé.'); }catch(_){ tSet(statusEl,'Chargement impossible.'); }};
-  document.getElementById('delLocal').onclick = ()=>{ const sel=document.getElementById('projList'); const n=sel.value; if(!n) return; localStorage.removeItem(lsKey(n)); refreshProjectList(); tSet(statusEl,'Projet supprimé.'); };
-  document.getElementById('exportJson').onclick = ()=>{ const st=captureState(); const blob=new Blob([JSON.stringify(st,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=(st.name||'projet_acc')+'.json'; a.click(); URL.revokeObjectURL(url); };
-  document.getElementById('importJson').addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(!f) return; try{ const txt=await f.text(); const st=JSON.parse(txt); applyState(st); tSet(statusEl,'Projet importé.'); }catch(_){ tSet(statusEl,'Fichier invalide.'); } });
-
-  // Impression
-  function updatePrintHeader(){
-    const name=(document.getElementById('projName').value||'Projet 1').trim()||'Projet 1';
-    const D=currentDiameter(); const n=participants.length, np=participants.filter(p=>p.type==='producer').length, nc=participants.filter(p=>p.type==='consumer').length;
-    document.getElementById('printMeta').textContent = `${name} — D=${D} km — Points: ${n} (Prod ${np}, Cons ${nc}) — ${fmtDate(new Date())}`;
-  }
-  async function ensureTilesReady(timeout=2000){
-    return new Promise(resolve=>{
-      const start=Date.now(); const tiles=[...document.querySelectorAll('.leaflet-tile')];
-      if(tiles.length===0){ resolve(); return; }
-      let remaining=tiles.length; const done=()=>{ if(--remaining<=0 || (Date.now()-start)>timeout) resolve(); };
-      tiles.forEach(img=>{ if(img.complete && img.naturalWidth>0){ done(); } else { img.addEventListener('load',done,{once:true}); img.addEventListener('error',done,{once:true}); } });
-      setTimeout(resolve, timeout);
-    });
-  }
-  document.getElementById('printBtn').onclick = async ()=>{ updatePrintHeader(); try{ map.invalidateSize(); }catch(_){ } await ensureTilesReady(2000); window.print(); };
-  window.addEventListener('beforeprint', async ()=>{ updatePrintHeader(); try{ map.invalidateSize(); }catch(_){ } await ensureTilesReady(1500); });
-  window.addEventListener('afterprint', ()=>{ setTimeout(()=>{ try{ map.invalidateSize(); }catch(_){ } }, 100); });
-
-  // Géocodage adresses
-  async function geocodePhoton(q){ const url='https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lang=fr&limit=5'; const r=await fetch(url); if(!r.ok) throw new Error('Photon'); const j=await r.json(); return (j.features||[]).map(f=>{ const g=f.geometry, p=f.properties||{}; if(!g||!g.coordinates) return null; const lat=g.coordinates[1], lng=g.coordinates[0]; const label=[p.housenumber,p.street,p.name,p.city,p.postcode].filter(Boolean).join(' '); return {label: label || p.name || q, lat, lng}; }).filter(Boolean); }
-  async function geocodeNominatim(q){ const url='https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=5&q='+encodeURIComponent(q); const r=await fetch(url,{headers:{'Accept':'application/json'}}); if(!r.ok) throw new Error('Nominatim'); const j=await r.json(); return j.map(o=>({label:o.display_name,lat:parseFloat(o.lat),lng:parseFloat(o.lon)})); }
-  async function searchAddress(q){ const box=document.getElementById('searchResults'); box.textContent='Recherche…'; let res=[]; try{ res=await geocodePhoton(q); }catch(_){ } if(!res.length){ try{ res=await geocodeNominatim(q); }catch(_){ } }
-    if(!res.length){ box.textContent='Aucun résultat ou service indisponible.'; return; }
-    const ul=document.createElement('ul'); res.forEach(r=>{ const li=document.createElement('li'); const a=document.createElement('a'); a.href='#'; a.textContent=r.label; a.dataset.lat=String(r.lat); a.dataset.lng=String(r.lng); a.dataset.label=r.label; li.appendChild(a); ul.appendChild(li); }); box.innerHTML=''; box.appendChild(ul);
-  }
-  document.getElementById('searchBtn').addEventListener('click', ()=>{ const q=(document.getElementById('searchQ').value||'').trim(); if(q) searchAddress(q); });
-  document.getElementById('searchQ').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); const q=(e.target.value||'').trim(); if(q) searchAddress(q); } });
-  document.getElementById('searchResults').addEventListener('click', e=>{ const a=e.target.closest('a[data-lat]'); if(!a) return; e.preventDefault(); addParticipant(parseFloat(a.dataset.lat), parseFloat(a.dataset.lng), selectedType(), a.dataset.label); map.setView([parseFloat(a.dataset.lat), parseFloat(a.dataset.lng)], 15); });
-
-  // ============ Annuaire de prospection (fix UI + Abort + Timeout + persistence) ============
-  const AE_BASE = 'https://recherche-entreprises.api.gouv.fr/search';
-  const AE_PROFILES = {
-    public:    ['84','85'],
-    sante:     ['86','87','88'],
-    artisanat: ['45','47','56','96'],
-    industrie: ['10','11','12','13','14','15','16','17','18','19','20','21','22','23','24','25','26','27','28','29','30','31','32','33'],
-    tous:      []
-  };
-  let aeState = { epci:'243801024', page:1, per_page:25, profil:'tous', lastRaw:[], lastFiltered:[] };
-  let aeAbort = null;          // AbortController actif
-  let aeReqId = 0;             // ID requête pour ignorer les réponses périmées
-
-  // Persist préférences (profil + epci)
-  function saveAePrefs(){ try{ localStorage.setItem('ae_prefs', JSON.stringify({epci:aeState.epci, profil:aeState.profil})); }catch(_){ } }
-  function loadAePrefs(){ try{ const p=JSON.parse(localStorage.getItem('ae_prefs')); if(p){ aeState.epci=p.epci||aeState.epci; aeState.profil=p.profil||aeState.profil; } }catch(_){ } }
-
-  function setAeUiDisabled(disabled){
-    document.querySelectorAll('.ae-filter, #aeLoad, #aeExport, #aeClearLayer, #aeEpci').forEach(el=>{ if(disabled) el.setAttribute('disabled','disabled'); else el.removeAttribute('disabled'); });
-    document.body.style.cursor = disabled ? 'progress' : 'default';
-  }
-
-  async function fetchWithTimeout(url, opts={}, timeoutMs=20000){
-    const ctrl = new AbortController();
-    const id = setTimeout(()=>ctrl.abort(new DOMException('timeout','AbortError')), timeoutMs);
-    try{
-      const r = await fetch(url, {...opts, signal: ctrl.signal});
-      return r;
-    } finally { clearTimeout(id); }
-  }
-
-  async function fetchCompanies({ epci, page=1, per_page=25, signal }){
-    const params = new URLSearchParams({
-      epci, etat:'active', per_page:String(Math.max(1,Math.min(per_page,25))), page:String(page)
-    });
-    const url = `${AE_BASE}?${params.toString()}`;
-    const r = await fetchWithTimeout(url, { headers:{'Accept':'application/json'}, signal }, 20000);
-    if(!r.ok) throw new Error(`API ${r.status}`);
-    return await r.json();
-  }
-
-  function normalizeCompanyRow(item){
-    const siege = item?.siege || item?.matching_etablissements?.[0] || {};
-    const adr = siege?.adresse || {};
-    const naf = item?.activite_principale || item?.naf || '';
-    const deno = item?.nom_complet || item?.nom_raison_sociale || item?.nom_entreprise || item?.denomination || '(Sans nom)';
-    return {
-      nom: deno,
-      siren: item?.siren || '',
-      siret: siege?.siret || '',
-      naf: naf,
-      adresse: [adr?.numero_voie, adr?.type_voie, adr?.libelle_voie, adr?.code_postal, adr?.commune].filter(Boolean).join(' ')
-    };
-  }
-
-  function applyLocalProfileFilter(results, profilKey){
-    const prefixes = AE_PROFILES[profilKey] || [];
-    if(!prefixes.length) return results.slice();
-    return results.filter(it=>{
-      const naf = (it?.activite_principale || it?.naf || '').trim();
-      return naf && prefixes.some(p => naf.startsWith(p));
-    });
-  }
-
-  function renderCompaniesList(data){
-    const wrap = document.getElementById('companiesWrap');
-    const page = data.page ?? aeState.page;
-    const per = data.per_page ?? aeState.per_page;
-    const total = data.total_results ?? 0;
-
-    aeState.lastRaw = data.results || [];
-    aeState.lastFiltered = applyLocalProfileFilter(aeState.lastRaw, aeState.profil);
-
-    const tbl = document.createElement('table'); tbl.className='tl-table';
-    tbl.innerHTML = `
-      <thead><tr>
-        <th>Nom</th><th>SIREN/SIRET</th><th>NAF</th><th>Adresse</th><th style="width:72px">Carte</th>
-      </tr></thead><tbody></tbody>`;
-    const tb = tbl.querySelector('tbody');
-
-    aeState.lastFiltered.forEach((it,i)=>{
-      const row = normalizeCompanyRow(it);
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td>${esc(row.nom)}</td>
-        <td>${esc(row.siren)}<br><span class="small">${esc(row.siret)}</span></td>
-        <td>${esc(row.naf)}</td>
-        <td>${esc(row.adresse)}</td>
-        <td><button class="btn secondary btn-geocode" data-idx="${i}" title="Localiser sur la carte">📍</button></td>`;
-      tb.appendChild(tr);
-    });
-
-    const totalPages = Math.max(1, Math.ceil(total/per));
-    const pag = document.createElement('div'); pag.className='small';
-    pag.innerHTML = `
-      <div style="display:flex;align-items:center;gap:8px;margin:6px 0;">
-        <button id="aePrev" class="btn secondary" ${page<=1?'disabled':''}>◀</button>
-        <span>Page ${page} / ${totalPages} — ${total} résultat(s), profil: <strong>${esc(aeState.profil)}</strong>, affichés: <strong>${aeState.lastFiltered.length}</strong></span>
-        <button id="aeNext" class="btn secondary" ${page>=totalPages?'disabled':''}>▶</button>
-        <span style="flex:1"></span>
-        <button id="aeCsv" class="btn">Exporter CSV (page filtrée)</button>
-      </div>`;
-
-    wrap.innerHTML=''; wrap.appendChild(tbl); wrap.appendChild(pag);
-
-    wrap.querySelectorAll('.btn-geocode').forEach(btn=>{
-      btn.addEventListener('click', async ()=>{
-        const idx=+btn.dataset.idx; const item=aeState.lastFiltered[idx];
-        const row=normalizeCompanyRow(item);
-        if(!row.adresse) return alert('Adresse introuvable pour cet établissement.');
-        btn.disabled=true; btn.textContent='…';
-        try{
-          const pt = await geocodeLazy(row.adresse);
-          if(!pt) alert('Géocodage impossible');
-          else{
-            const m=L.circleMarker([pt.lat,pt.lng],{radius:6,color:colors.company,weight:2,fillColor:colors.company,fillOpacity:.35}).addTo(companiesLayer);
-            m.bindTooltip(`${row.nom} — ${row.siren}`).openTooltip();
-            map.setView([pt.lat,pt.lng], 15);
-          }
-        } finally { btn.disabled=false; btn.textContent='📍'; }
-      });
-    });
-
-    document.getElementById('aePrev')?.addEventListener('click', ()=>{ if(aeState.page>1){ aeState.page--; companiesLayer.clearLayers(); loadCompanies(); }});
-    document.getElementById('aeNext')?.addEventListener('click', ()=>{ aeState.page++; companiesLayer.clearLayers(); loadCompanies(); });
-    document.getElementById('aeCsv')?.addEventListener('click', exportCompaniesCsv);
-  }
-
-  function exportCompaniesCsv(){
-    const rows = aeState.lastFiltered.map(normalizeCompanyRow);
-    const csv = [
-      'nom;siren;siret;naf;adresse',
-      ...rows.map(r => [r.nom,r.siren,r.siret,r.naf,r.adresse].map(s=>`"${String(s).replace(/"/g,'""')}"`).join(';'))
-    ].join('\n');
-    const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'}); const url=URL.createObjectURL(blob);
-    const a=document.createElement('a'); a.href=url; a.download=`prospection_epci_${aeState.epci}_${aeState.profil}.csv`; a.click(); URL.revokeObjectURL(url);
-  }
-
-  // Géocodage à la demande (throttle)
-  let __geocodeLock=0;
-  async function geocodeLazy(q){
-    const now=Date.now(); if(now-__geocodeLock<800) await new Promise(r=>setTimeout(r,800)); __geocodeLock=Date.now();
-    try{ const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lang=fr&limit=1'); if(r.ok){ const j=await r.json(); const f=j.features?.[0]; if(f?.geometry?.coordinates) return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0]}; } }catch(e){}
-    try{ const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(q),{headers:{'Accept':'application/json'}}); if(r.ok){ const j=await r.json(); const f=j?.[0]; if(f?.lat && f?.lon) return {lat:+f.lat, lng:+f.lon}; } }catch(e){}
-    return null;
-  }
-
-  async function loadCompanies(){
-    // Abort requête précédente si existante
-    if(aeAbort){ try{ aeAbort.abort(); }catch(_){ } }
-    aeAbort = new AbortController();
-    const reqId = ++aeReqId;
-
-    const epciInput = document.getElementById('aeEpci'); aeState.epci = (epciInput?.value||'243801024').trim();
-    saveAePrefs();
-
-    const box = document.getElementById('companiesWrap');
-    box.innerHTML = `<div style="display:flex;align-items:center;gap:8px"><span>Chargement…</span><span class="small">(${esc(aeState.epci)}, profil ${esc(aeState.profil)})</span></div>`;
-
-    setAeUiDisabled(true);
-    companiesLayer.clearLayers();
-
-    try{
-      const data = await fetchCompanies({ epci: aeState.epci, page: aeState.page, per_page: aeState.per_page, signal: aeAbort.signal });
-      // Si une autre requête a pris le dessus, on ignore ce résultat
-      if(reqId !== aeReqId) return;
-      renderCompaniesList(data);
-    } catch(e){
-      if (e.name === 'AbortError') {
-        // requête annulée → ne rien afficher (une nouvelle suit)
-        return;
+      // MEC (centre libre sur nuage de points)
+      function projectLocal(pointsLL){ const lat0=pointsLL.reduce((s,p)=>s+p.lat,0)/pointsLL.length; const lon0=pointsLL.reduce((s,p)=>s+p.lng,0)/pointsLL.length; const P=pointsLL.map(p=>({x:(p.lng-lon0)*111.32*Math.cos(lat0*Math.PI/180), y:(p.lat-lat0)*111.32})); return {lat0,lon0,P}; }
+      function unprojectLocal(lat0,lon0,x,y){ return {lat:lat0 + y/111.32, lng: lon0 + x/(111.32*Math.cos(lat0*Math.PI/180))}; }
+      function dist2(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
+      function circleBy2(a,b){ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,r:Math.sqrt(dist2(a,b))/2}; }
+      function circleBy3(a,b,c){ const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y; const E=A*(a.x+b.x)+B*(a.y+b.y); const F=C*(a.x+c.x)+D*(a.y+c.y); const G=2*(A*(c.y-b.y)-B*(c.x-b.x)); if(Math.abs(G)<1e-12) return null; const x=(D*E-B*F)/G, y=(A*F-C*E)/G, r=Math.hypot(x-a.x,y-a.y); return {x,y,r}; }
+      function inCircle(c,p){ return Math.hypot(c.x-p.x,c.y-p.y) <= c.r + 1e-9; }
+      function minimalEnclosingCircle(pointsLL){
+        if(pointsLL.length===0) return null; if(pointsLL.length===1) return {center:pointsLL[0], r:0};
+        const {lat0,lon0,P}=projectLocal(pointsLL); let best=null;
+        for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ const c=circleBy2(P[i],P[j]); if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c; }
+        for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) for(let k=j+1;k<P.length;k++){ const c=circleBy3(P[i],P[j],P[k]); if(!c) continue; if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c; }
+        if(!best){ let max=-1,a=-1,b=-1; for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ const d=dist2(P[i],P[j]); if(d>max){max=d;a=i;b=j;} } best=circleBy2(P[a],P[b]); }
+        const center=unprojectLocal(lat0,lon0,best.x,best.y); return {center, r:best.r};
       }
-      console.error(e);
-      box.innerHTML = `<div class="small" style="color:#b91c1c">Erreur API : ${esc(e.message||e)}. Vérifie la connexion ou réessaie.</div>`;
-    } finally {
-      // Si on est toujours la requête courante
-      if(reqId === aeReqId) setAeUiDisabled(false);
+
+      // ===== Carte
+      const map = L.map('map', { zoomControl:true }).setView([45.3, 5.6], 8);
+      const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© OpenStreetMap' });
+      const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png',{ maxZoom:19, attribution:'© Carto, © OpenStreetMap' });
+      osm.on('tileerror', ()=>{ if(!map.hasLayer(carto)) carto.addTo(map); if(map.hasLayer(osm)) map.removeLayer(osm); tSet(statusEl,'Fond OSM bloqué → Carto Light.'); });
+      osm.addTo(map);
+      L.control.scale({imperial:false, metric:true, maxWidth:120}).addTo(map);
+
+      // Échelle 1:n
+      const RatioControl = L.Control.extend({
+        options: { position:'topright' },
+        onAdd: function(map){
+          const div=L.DomUtil.create('div','leaflet-control ratio-control');
+          this._div=div; this._map=map; this._update=this._update.bind(this); map.on('zoomend moveend', this._update); this._update(); return div;
+        },
+        onRemove: function(map){ map.off('zoomend moveend', this._update); },
+        _update: function(){
+          const c=this._map.getCenter(), z=this._map.getZoom();
+          if(z==null){ this._div.textContent='Échelle —'; return; }
+          const mpp = 156543.03392 * Math.cos(c.lat*Math.PI/180) / Math.pow(2, z);
+          const denom = Math.max(1, Math.round(mpp / 0.0002645833333));
+          this._div.textContent = 'Échelle ~ 1:' + denom.toLocaleString('fr-FR');
+        }
+      });
+      map.whenReady(()=> map.addControl(new RatioControl()));
+
+      function layout(){ const H=document.querySelector('header.slim'); const h=Math.max(420, window.innerHeight - H.getBoundingClientRect().height - 16); mapEl.style.height=h+'px'; try{ map.invalidateSize(); }catch(_){ } }
+      window.addEventListener('resize', layout); setTimeout(layout, 50);
+
+      // ===== Données runtime
+      const participants=[]; // {id,name,type,lat,lng,marker}
+      let uid=0;
+      let vizCircle=null; // cercle D/2 (visualisation)
+      const colors={producer:'#6D28D9', consumer:'#2e86de'};
+      const participantLayer = L.layerGroup().addTo(map);
+
+      // ===== Communes Isère (centroïdes)
+      let communes = []; // {code, nom, lat, lon}
+      fetch('data/communes38.json').then(r=>r.json()).then(j=>{
+        communes = Array.isArray(j)? j : (j.features? j.features.map(f=>({
+          code: f.properties?.code || f.properties?.insee || '',
+          nom: f.properties?.nom || f.properties?.name || '',
+          lat: f.properties?.lat ?? f.geometry?.coordinates?.[1],
+          lon: f.properties?.lon ?? f.geometry?.coordinates?.[0],
+        })) : []);
+      }).catch(()=>{ tSet(statusEl, '⚠️ communes38.json introuvable (placer le fichier dans /data).'); });
+
+      // ===== UI helpers
+      function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
+      function currentDiameter(){ const sel=document.getElementById('limitSel').value; if(sel==='custom'){ const v=parseFloat(document.getElementById('customKm').value||'0'); return (isNaN(v)||v<=0)?20:v; } return parseFloat(sel); }
+      function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.'; }
+
+      // ===== Participants
+      function addParticipant(lat,lng,type,name){
+        const id=++uid; const label=name || `${type} ${id}`;
+        const m=L.circleMarker([lat,lng],{radius:7,color:colors[type],weight:2,fillColor:colors[type],fillOpacity:0.3}).addTo(participantLayer);
+        const entry={id,name:label,type,lat,lng,marker:m};
+        m.bindTooltip(`${esc(label)} (${type})`);
+        m.bindPopup(makeParticipantPopup(entry));
+        m.on('contextmenu', ()=> removeParticipant(id));
+        participants.push(entry);
+        refreshACC(true);
+      }
+      function makeParticipantPopup(entry){
+        const wrap=document.createElement('div');
+        const title=document.createElement('strong'); title.textContent=entry.name||''; wrap.appendChild(title);
+        wrap.appendChild(document.createElement('br'));
+        wrap.appendChild(document.createTextNode(entry.type));
+        const box=document.createElement('div'); box.style.marginTop='6px'; box.style.display='flex'; box.style.gap='6px'; box.style.flexWrap='wrap';
+        const bRen=document.createElement('button'); bRen.className='btn secondary'; bRen.textContent='Renommer';
+        bRen.onclick=()=>{ const nn=prompt('Nouveau nom :', entry.name||''); if(nn&&nn.trim()){ entry.name=nn.trim(); entry.marker.setPopupContent(makeParticipantPopup(entry)); entry.marker.bindTooltip(`${entry.name} (${entry.type})`); } };
+        const bDel=document.createElement('button'); bDel.className='btn secondary'; bDel.textContent='Supprimer';
+        bDel.onclick=()=> removeParticipant(entry.id);
+        box.appendChild(bRen); box.appendChild(bDel); wrap.appendChild(box);
+        return wrap;
+      }
+      function removeParticipant(id){
+        const i=participants.findIndex(p=>p.id===id);
+        if(i>-1){ participantLayer.removeLayer(participants[i].marker); participants.splice(i,1); refreshACC(); }
+      }
+      map.on('click', e=> addParticipant(e.latlng.lat, e.latlng.lng, selectedType()));
+
+      // ===== ACC (cercle D/2 sur centre libre)
+      function clearVizCircle(){ if(vizCircle){ map.removeLayer(vizCircle); vizCircle=null; } }
+      function styleParticipants(center, R){
+        participants.forEach(p=>{
+          const d = haversineKm(center,{lat:p.lat,lng:p.lng});
+          const inside = d <= R + eps;
+          p.marker.setStyle({
+            color: inside ? colors[p.type] : '#8b8b8b',
+            weight: inside ? 3 : 2,
+            fillColor: colors[p.type],
+            fillOpacity: inside ? 0.5 : 0.15
+          });
+        });
+      }
+      function communesInCircle(center,R){
+        if(!communes || !communes.length) return [];
+        const list = communes.filter(c=>{
+          if(c.lat==null||c.lon==null) return false;
+          const d = haversineKm(center,{lat:c.lat,lng:c.lon});
+          return d <= R + 0.2; // marge 200 m
+        });
+        communeStatEl.textContent = 'Communes dans le périmètre : ' + list.length;
+        return list;
+      }
+      function refreshACC(autoFit=false){
+        updateCount();
+        const D=currentDiameter(); const R=D/2;
+        clearVizCircle();
+        if(!participants.length){ tSet(statusEl,'Ajoutez un producteur et des consommateurs.'); return; }
+        if(!participants.some(p=>p.type==='producer')){ tSet(statusEl,'Aucun producteur détecté.'); return; }
+
+        const mec = minimalEnclosingCircle(participants.map(p=>({lat:p.lat,lng:p.lng})));
+        if(!mec){ tSet(statusEl,'Centre libre non calculable.'); return; }
+        const pass = mec.r <= R + eps;
+
+        vizCircle = L.circle([mec.center.lat,mec.center.lng],{ radius:R*1000,color:'#6D28D9',weight:2,fill:false,opacity:0.9,dashArray:'6 6' })
+          .addTo(map).bindTooltip('Centre libre (visualisation) — centre non défini',{className:'center-free-tip'});
+
+        styleParticipants(mec.center, R);
+
+        if(autoFit && participants.length>1){
+          const g=L.featureGroup(participants.map(p=>p.marker));
+          map.fitBounds(g.getBounds().pad(0.25));
+        }
+
+        const outside = participants.filter(p=> haversineKm(mec.center,{lat:p.lat,lng:p.lng}) > R + eps).map(p=> p.name||p.type);
+        if(pass){
+          hSet(statusEl, `<strong>Conforme</strong> — D=${esc(String(D))} km · r*=${esc(mec.r.toFixed(2))} km ≤ D/2=${esc(R.toFixed(2))} km.`, 'ok');
+        }else{
+          hSet(statusEl, `<strong>Non conforme</strong> — D=${esc(String(D))} km · r*=${esc(mec.r.toFixed(2))} km > D/2=${esc(R.toFixed(2))} km · Points limitants : ${outside.map(esc).join(', ')||'—'}`, 'ko');
+        }
+
+        // prépare la liste des communes dans le cercle (centroïdes)
+        window.__communes_in_circle__ = communesInCircle(mec.center, R);
+        window.__circle_center__ = mec.center;
+        window.__circle_radius_km__ = R;
+      }
+
+      // UI top bar
+      document.getElementById('limitSel').addEventListener('change', (e)=>{ const v=e.target.value; const custom=document.getElementById('customKm'); custom.style.display=(v==='custom')?'inline-block':'none'; refreshACC(); });
+      document.getElementById('customKm').addEventListener('input', refreshACC);
+      document.getElementById('clearBtn').onclick = ()=>{ participants.slice().forEach(p=> removeParticipant(p.id)); };
+      document.getElementById('fitBtn').onclick = ()=>{ if(!participants.length) return; const g=L.featureGroup(participants.map(p=>p.marker)); map.fitBounds(g.getBounds().pad(0.25)); };
+
+      // Localisation
+      let myMarker=null, myAccCircle=null;
+      function clearMyLoc(){ if(myMarker){map.removeLayer(myMarker); myMarker=null;} if(myAccCircle){map.removeLayer(myAccCircle); myAccCircle=null;} }
+      document.getElementById('locateBtn').addEventListener('click', ()=>{
+        if(!navigator.geolocation){ tSet(statusEl,'Géolocalisation non supportée.'); return; }
+        navigator.geolocation.getCurrentPosition(pos=>{
+          const lat=pos.coords.latitude, lng=pos.coords.longitude, acc=pos.coords.accuracy||50;
+          clearMyLoc();
+          const myIcon=L.divIcon({className:'myloc-pin', html:`<svg width="28" height="28" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M16 2C10.477 2 6 6.477 6 12c0 7 10 18 10 18s10-11 10-18C26 6.477 21.523 2 16 2z" fill="#111827"/><circle cx="16" cy="12" r="5" fill="#34D399"/></svg>`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-28]});
+          myMarker=L.marker([lat,lng],{icon:myIcon,zIndexOffset:1000}).addTo(map).bindTooltip('Vous êtes ici');
+          myAccCircle=L.circle([lat,lng],{radius:acc,color:'#34D399',weight:1,opacity:0.5,fillOpacity:0.06}).addTo(map);
+          map.setView([lat,lng], 15);
+          tSet(statusEl,`Localisé (~±${Math.round(acc)} m).`);
+        }, ()=> tSet(statusEl,'Géolocalisation refusée / indisponible.'), {enableHighAccuracy:true, timeout:8000, maximumAge:30000});
+      });
+
+      // Drawer
+      const drawer = document.getElementById('drawer');
+      document.getElementById('gearBtn').onclick = ()=>{ refreshProjectList(); drawer.classList.add('open'); drawer.setAttribute('aria-hidden','false'); };
+      document.getElementById('drawerClose').onclick = ()=>{ drawer.classList.remove('open'); drawer.setAttribute('aria-hidden','true'); };
+
+      // Projets
+      function captureState(){ return {
+        name: (document.getElementById('projName').value||'Projet 1').trim()||'Projet 1',
+        settings: { diameterSel: document.getElementById('limitSel').value, customKm: document.getElementById('customKm').value },
+        participants: participants.map(p=>({name:p.name, lat:p.lat, lng:p.lng, type:p.type}))
+      }; }
+      function applyState(st){
+        participants.slice().forEach(p=> removeParticipant(p.id));
+        document.getElementById('projName').value = st.name || 'Projet';
+        document.getElementById('limitSel').value = st.settings?.diameterSel || '20';
+        document.getElementById('customKm').value = st.settings?.customKm || '';
+        document.getElementById('customKm').style.display = (document.getElementById('limitSel').value==='custom')?'inline-block':'none';
+        (st.participants||[]).forEach(p=> addParticipant(p.lat, p.lng, p.type, p.name));
+        refreshACC(true);
+      }
+      function lsKey(name){ return 'acc_project:'+name; }
+      function refreshProjectList(){ const sel=document.getElementById('projList'); const keys=[]; for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && k.startsWith('acc_project:')) keys.push(k.slice('acc_project:'.length)); } keys.sort((a,b)=>a.localeCompare(b)); sel.innerHTML=''; keys.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; sel.appendChild(o); }); }
+      document.getElementById('saveLocal').onclick = ()=>{ const st=captureState(); localStorage.setItem(lsKey(st.name), JSON.stringify(st)); refreshProjectList(); tSet(statusEl,'Projet enregistré (local).'); };
+      document.getElementById('loadLocal').onclick = ()=>{ const sel=document.getElementById('projList'); const n=sel.value; if(!n) return; try{ const st=JSON.parse(localStorage.getItem(lsKey(n))); if(st) applyState(st); tSet(statusEl,'Projet chargé.'); }catch(_){ tSet(statusEl,'Chargement impossible.'); }};
+      document.getElementById('delLocal').onclick = ()=>{ const sel=document.getElementById('projList'); const n=sel.value; if(!n) return; localStorage.removeItem(lsKey(n)); refreshProjectList(); tSet(statusEl,'Projet supprimé.'); };
+
+      document.getElementById('exportJson').onclick = ()=>{ const st=captureState(); const blob=new Blob([JSON.stringify(st,null,2)],{type:'application/json'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=(st.name||'projet_acc')+'.json'; a.click(); URL.revokeObjectURL(url); };
+      document.getElementById('importJson').addEventListener('change', async (e)=>{ const f=e.target.files[0]; if(!f) return; try{ const txt=await f.text(); const st=JSON.parse(txt); applyState(st); tSet(statusEl,'Projet importé.'); }catch(_){ tSet(statusEl,'Fichier invalide.'); } });
+
+      // Impression
+      function updatePrintHeader(){
+        const name=(document.getElementById('projName').value||'Projet 1').trim()||'Projet 1';
+        const D=currentDiameter(); const n=participants.length, np=participants.filter(p=>p.type==='producer').length, nc=participants.filter(p=>p.type==='consumer').length;
+        document.getElementById('printMeta').textContent = `${name} — D=${D} km — Points: ${n} (Prod ${np}, Cons ${nc}) — ${fmtDate(new Date())}`;
+      }
+      async function ensureTilesReady(timeout=2000){
+        return new Promise(resolve=>{
+          const start=Date.now(); const tiles=[...document.querySelectorAll('.leaflet-tile')];
+          if(tiles.length===0){ resolve(); return; }
+          let remaining=tiles.length; const done=()=>{ if(--remaining<=0 || (Date.now()-start)>timeout) resolve(); };
+          tiles.forEach(img=>{ if(img.complete && img.naturalWidth>0){ done(); } else { img.addEventListener('load',done,{once:true}); img.addEventListener('error',done,{once:true}); } });
+          setTimeout(resolve, timeout);
+        });
+      }
+      document.getElementById('printBtn').onclick = async ()=>{ updatePrintHeader(); try{ map.invalidateSize(); }catch(_){ } await ensureTilesReady(2000); window.print(); };
+      window.addEventListener('beforeprint', async ()=>{ updatePrintHeader(); try{ map.invalidateSize(); }catch(_){ } await ensureTilesReady(1500); });
+      window.addEventListener('afterprint', ()=>{ setTimeout(()=>{ try{ map.invalidateSize(); }catch(_){ } }, 100); });
+
+      // ===== Prospection (API publique)
+      const form = document.querySelector('#prospectForm');
+      const resultsEl = document.querySelector('#prospectResults');
+      const progressEl = document.querySelector('#prospectProgress');
+      const btnSearch = document.getElementById('prospectSearch');
+      const btnCancel = document.getElementById('prospectCancel');
+      const btnCsv = document.getElementById('prospectExportCsv');
+      const btnGeo = document.getElementById('prospectExportGeo');
+      let aborter=null;
+      let accResults=[]; // cumul multi-pages (filtrés dans le cercle)
+      let lastQueryInfo = null;
+
+      function setLoading(b){ document.documentElement.classList.toggle('loading', !!b); document.body.classList.toggle('loading', !!b); }
+      function buildUrl(params){
+        const base='https://recherche-entreprises.api.gouv.fr/search';
+        const url = new URL(base);
+        const allow=['terme','commune','code_postal','departement','region','epci','etat','naf','categorie_entreprise','nature_juridique','tranche_effectif_salarie','type','per_page','page'];
+        for(const k of allow){ if(params[k]!=null && String(params[k]).trim()!==''){ url.searchParams.set(k, String(params[k]).trim()); } }
+        if(!url.searchParams.has('etat')) url.searchParams.set('etat','active');
+        const pp=Math.min(25,Math.max(1,parseInt(url.searchParams.get('per_page')||'25',10))); url.searchParams.set('per_page',String(pp));
+        const p=Math.max(1,parseInt(url.searchParams.get('page')||'1',10)); url.searchParams.set('page',String(p));
+        return url.toString();
+      }
+      function readFilters(){
+        const fd=new FormData(form); const o=Object.fromEntries(fd.entries());
+        o.etat='active'; o.per_page=25; o.page=1;
+        if(o.exclude_micro) o.categorie_entreprise='pme,eti,ge'; // exclut micro
+        // EPCI volontaire, sinon departement=38 par défaut
+        if(!o.epci) o.departement='38';
+        if(!o.naf) delete o.naf;
+        if(!o.tranche_effectif_salarie) delete o.tranche_effectif_salarie;
+        return o;
+      }
+      function pointInCircle(lat,lon, center, Rkm){ return haversineKm({lat, lng:lon}, center) <= Rkm + 1e-6; }
+      function inPerimeter(est){
+        const center = window.__circle_center__, R = window.__circle_radius_km__;
+        if(!center || !R) return false;
+        const lat = est?.adresse?.latitude ?? est?.latitude;
+        const lon = est?.adresse?.longitude ?? est?.longitude;
+        if(lat!=null && lon!=null) return pointInCircle(+lat,+lon, center, R);
+        // fallback par commune si lat/lon manquants
+        const codeComm = est?.adresse?.code_commune_insee || est?.adresse?.code_commune || est?.code_commune;
+        if(!codeComm || !Array.isArray(window.__communes_in_circle__)) return false;
+        return window.__communes_in_circle__.some(c=> String(c.code)===String(codeComm));
+      }
+      function normalizeRow(e){
+        const adr = e.adresse || {};
+        return {
+          siren: e.siren || '',
+          siret: e.siret || '',
+          nom: e.nom_complet || e.nom_raison_sociale || e.denomination || '',
+          enseigne: e.enseigne || '',
+          naf: e.activite_principale || e.naf || '',
+          libelle_naf: e.libelle_activite_principale || e.libelle_naf || '',
+          categorie_entreprise: e.categorie_entreprise || '',
+          tranche_effectif_salarie: e.tranche_effectif_salarie || '',
+          adresse: adr.ligne_1 || adr.ligne || '',
+          code_postal: adr.code_postal || '',
+          commune: adr.libelle_commune || adr.commune || '',
+          code_commune: adr.code_commune_insee || adr.code_commune || '',
+          latitude: adr.latitude ?? e.latitude ?? null,
+          longitude: adr.longitude ?? e.longitude ?? null,
+          etat_admin: e.etat_administratif || e.etat || '',
+          date_immatriculation: e.date_immatriculation || '',
+          source: 'recherche-entreprises.api.gouv.fr'
+        };
+      }
+      function renderTable(rows){
+        const tb = document.createElement('table'); tb.className='list';
+        tb.innerHTML = `
+          <thead><tr>
+            <th>SIRET</th><th>Nom</th><th>NAF</th><th>Effectif</th><th>Commune</th><th>CP</th><th>Dans cercle</th>
+          </tr></thead>
+          <tbody></tbody>`;
+        const body = tb.querySelector('tbody');
+        rows.forEach(r=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML = `
+            <td>${esc(r.siret||'')}</td>
+            <td>${esc(r.nom||'')}${r.enseigne?`<div class="small muted">${esc(r.enseigne)}</div>`:''}</td>
+            <td>${esc(r.naf||'')}${r.libelle_naf?`<div class="small muted">${esc(r.libelle_naf)}</div>`:''}</td>
+            <td>${esc(r.tranche_effectif_salarie||'')}</td>
+            <td>${esc(r.commune||'')}</td>
+            <td>${esc(r.code_postal||'')}</td>
+            <td>${inPerimeter(r)?'✅':'❌'}</td>`;
+          body.appendChild(tr);
+        });
+        resultsEl.innerHTML=''; resultsEl.appendChild(tb);
+      }
+      function toCSV(rows){
+        const head=['siren','siret','nom','enseigne','naf','libelle_naf','categorie_entreprise','tranche_effectif_salarie','adresse','code_postal','commune','code_commune','latitude','longitude','etat_admin','date_immatriculation','dans_cercle'];
+        const csv=[ head.join(';'),
+          ...rows.map(r=> head.map(k=>{
+            let v = (k==='dans_cercle') ? (inPerimeter(r)?'oui':'non') : (r[k]==null?'':String(r[k]));
+            v = v.replace(/"/g,'""');
+            return `"${v}"`;
+          }).join(';'))
+        ].join('\n');
+        return new Blob([csv],{type:'text/csv;charset=utf-8;'});
+      }
+      function toGeoJSON(rows){
+        const center = window.__circle_center__;
+        const fc = {type:'FeatureCollection', features: rows.map(r=>{
+          const hasCoord = (r.latitude!=null && r.longitude!=null);
+          return {
+            type:'Feature',
+            geometry: hasCoord ? {type:'Point', coordinates:[+r.longitude, +r.latitude]} : null,
+            properties: {
+              siren:r.siren, siret:r.siret, nom:r.nom, enseigne:r.enseigne,
+              naf:r.naf, libelle_naf:r.libelle_naf, categorie_entreprise:r.categorie_entreprise,
+              tranche_effectif_salarie:r.tranche_effectif_salarie,
+              adresse:r.adresse, code_postal:r.code_postal, commune:r.commune, code_commune:r.code_commune,
+              etat_admin:r.etat_admin, date_immatriculation:r.date_immatriculation,
+              dans_cercle: inPerimeter(r) ? 'oui':'non'
+            }
+          };
+        })};
+        return new Blob([JSON.stringify(fc,null,2)],{type:'application/json'});
+      }
+      function downloadBlob(blob, filename){
+        const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); URL.revokeObjectURL(url);
+      }
+
+      async function fetchOnePage(url, signal){
+        const r = await fetch(url,{signal});
+        if(!r.ok) throw new Error('HTTP '+r.status);
+        return r.json();
+      }
+
+      btnCancel.addEventListener('click', ()=>{
+        if(aborter){ aborter.abort(); aborter=null; tSet(progressEl,'Requête annulée.'); setLoading(false); }
+      });
+
+      btnSearch.addEventListener('click', async ()=>{
+        // Pré-requis : périmètre
+        const center = window.__circle_center__, R = window.__circle_radius_km__;
+        if(!center || !R){ tSet(statusEl,'Définis d’abord le périmètre : ajoute un producteur + consommateurs.', 'ko'); return; }
+
+        const params = readFilters();
+        accResults=[]; btnCsv.disabled=true; btnGeo.disabled=true;
+        lastQueryInfo = { when:Date.now(), params };
+
+        // boucle pagination. On limite souple à 2000 lignes pour GitHub Pages
+        let page=1, totalFetched=0, totalKept=0, hardCap=2000, keepGoing=true;
+        setLoading(true); tSet(progressEl,'Démarrage…'); aborter = new AbortController();
+
+        // stratégie : on utilise epci si renseigné, sinon departement=38 (déjà mis)
+        while(keepGoing){
+          params.page=page;
+          const url = buildUrl(params);
+          try{
+            const j = await fetchOnePage(url, aborter.signal);
+            const arr = Array.isArray(j.results||j.etablissements||j.data) ? (j.results||j.etablissements||j.data) : (Array.isArray(j)?j:[]);
+            if(arr.length===0){ keepGoing=false; break; }
+            totalFetched += arr.length;
+
+            // normalisation + filtrage supplémentaires (associations, etc.)
+            let rows = arr.map(normalizeRow);
+            if(form.querySelector('input[name="exclude_asso"]:checked')){
+              rows = rows.filter(r=> !(String(r.nature_juridique||'').startsWith('92') || String(r.nature_juridique||'').startsWith('93')));
+            }
+            // filtre dans le cercle
+            rows = rows.filter(inPerimeter);
+            accResults.push(...rows); totalKept += rows.length;
+
+            tSet(progressEl, `Page ${page} : ${rows.length} gardées / ${arr.length} reçues · Total gardées : ${totalKept}`);
+            renderTable(accResults);
+
+            page += 1;
+            if(arr.length < 25) keepGoing=false; // dernière page
+            if(totalFetched >= hardCap){ tSet(progressEl, `Limite douce atteinte (${hardCap}). Arrêt.`); keepGoing=false; }
+          }catch(e){
+            if(e.name==='AbortError'){ tSet(progressEl,'Annulé.'); break; }
+            tSet(progressEl, `Erreur API : ${e.message||e}`, ''); keepGoing=false;
+          }
+        }
+
+        setLoading(false); aborter=null;
+        btnCsv.disabled = accResults.length===0;
+        btnGeo.disabled = accResults.length===0;
+        if(accResults.length===0) tSet(progressEl,'Aucun établissement dans le périmètre avec ces filtres.');
+      });
+
+      btnCsv.addEventListener('click', ()=>{
+        if(!accResults.length) return;
+        const blob = toCSV(accResults);
+        downloadBlob(blob, 'prospection_acc_isere.csv');
+      });
+      btnGeo.addEventListener('click', ()=>{
+        if(!accResults.length) return;
+        const blob = toGeoJSON(accResults);
+        downloadBlob(blob, 'prospection_acc_isere.geojson');
+      });
+
+      // ===== Recherche adresse (optionnel minimal)
+      async function geocodePhoton(q){ const url='https://photon.komoot.io/api/?q='+encodeURIComponent(q)+'&lang=fr&limit=1'; try{ const r=await fetch(url); if(!r.ok) return null; const j=await r.json(); const f=j.features?.[0]; if(f) return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0], label:f.properties?.name||q}; }catch(_){ } return null; }
+
+      // ===== Lancer
+      layout();
+      tSet(statusEl,'Prêt.');
+      window.addEventListener('error', e=>{ tSet(statusEl,'Erreur JS : '+e.message); });
+      window.addEventListener('unhandledrejection', e=>{ tSet(statusEl,'Erreur Promesse : '+(e.reason?.message||e.reason)); });
     }
-  }
-
-  // Events profils + commandes
-  function setActiveProfileBtn(key){
-    document.querySelectorAll('.ae-filter').forEach(b=>{
-      const is = (b.dataset.f===key);
-      b.classList.toggle('active', is);
-    });
-  }
-  document.querySelectorAll('.ae-filter').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      if(btn.hasAttribute('disabled')) return;
-      aeState.profil = btn.dataset.f || 'tous';
-      aeState.page = 1;
-      setActiveProfileBtn(aeState.profil);
-      saveAePrefs();
-      loadCompanies();
-    });
-  });
-  document.getElementById('aeLoad').addEventListener('click', ()=>{ if(!document.getElementById('aeLoad').disabled){ aeState.page=1; loadCompanies(); }});
-  document.getElementById('aeExport').addEventListener('click', exportCompaniesCsv);
-  document.getElementById('aeClearLayer').addEventListener('click', ()=> companiesLayer.clearLayers());
-
-  // Restaurer préférences (profil + epci) au démarrage
-  loadAePrefs();
-  document.getElementById('aeEpci').value = aeState.epci;
-  setActiveProfileBtn(aeState.profil);
-
-  // Recherche adresse
-  async function geocodeDefault(addr){}
-
-  // Lancer
-  layout();
-  tSet(statusEl,'Prêt.');
-  window.addEventListener('error', e=>{ tSet(statusEl,'Erreur JS : '+e.message); });
-  window.addEventListener('unhandledrejection', e=>{ tSet(statusEl,'Erreur Promesse : '+(e.reason?.message||e.reason)); });
-}
-</script>
+  </script>
 </body>
 </html>
