@@ -2,210 +2,175 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <title>Echome Énergies — ACC Terrain (MVP + EPCI)</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#11162a">
-  <meta name="format-detection" content="telephone=no">
-  <link rel="icon" href="data:,">
-
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ACC · Coordination (V2)</title>
+  <meta name="theme-color" content="#37C3AF" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon-32.png" sizes="32x32" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
   <!-- Leaflet -->
-  <link rel="stylesheet"
-        href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
-        crossorigin="anonymous">
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
-          crossorigin="anonymous"></script>
-
-  <link rel="stylesheet" href="./styles.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin>
+  <!-- Styles -->
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">Echome Énergies</div>
-    <div id="status" class="status">Prêt</div>
+    <div class="brand">
+      <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#fff">ECHOME</text>
+      </svg>
+      <span>ACC · Coordination</span>
+    </div>
+
+    <div class="toolbar">
+      <div class="group" role="radiogroup" aria-label="Type de point">
+        <label class="chip"><input type="radio" name="ptype" value="producer"> <span class="dot prod"></span>Prod.</label>
+        <label class="chip"><input type="radio" name="ptype" value="consumer" checked> <span class="dot cons"></span>Cons.</label>
+      </div>
+
+      <div class="group">
+        <label class="small">Diamètre D :</label>
+        <select id="diamSel">
+          <option value="2">2 km</option>
+          <option value="10">10 km</option>
+          <option value="20" selected>20 km</option>
+          <option value="custom">Perso</option>
+        </select>
+        <input id="diamCustom" type="number" min="0.1" step="0.1" placeholder="km" style="width:90px;display:none">
+      </div>
+
+      <div class="group">
+        <button id="btnLocate" class="btn icon" title="Me localiser">📍</button>
+        <button id="btnFit" class="btn icon" title="Ajuster la vue">🗺️</button>
+        <button id="btnPrint" class="btn icon" title="Imprimer / PDF">🖨️</button>
+        <button id="btnClear" class="btn icon" title="Effacer participants">🗑️</button>
+        <button id="btnDrawer" class="btn secondary">⚙️ Options</button>
+      </div>
+    </div>
   </header>
 
-  <div id="error-box" class="error-box hidden" aria-live="polite"></div>
+  <div id="status" role="status" aria-live="polite">Initialisation…</div>
 
-  <main class="map-stage" role="main" aria-label="Carte ACC">
-    <div id="map" class="map"></div>
+  <main>
+    <div id="map" aria-label="Carte interactive"></div>
+    <div class="legend-overlay">
+      <div class="item"><span class="dot prod"></span>Producteur</div>
+      <div class="item"><span class="dot cons"></span>Consommateur</div>
+      <div class="item"><span class="dot poi"></span>POI incendie</div>
+    </div>
   </main>
 
-  <!-- Barre fixe (toujours visible) -->
-  <nav class="btmbar" role="navigation" aria-label="Actions terrain">
-    <!-- 1) Producteur -->
-    <button id="btnProducer" class="btm-btn" aria-haspopup="dialog" aria-controls="sheetProducer">
-      <span>Prod.</span>
-    </button>
+  <!-- Drawer -->
+  <aside id="drawer" aria-hidden="true">
+    <header>
+      <h2>Options & Données</h2>
+      <button id="btnDrawerClose" class="btn secondary">Fermer</button>
+    </header>
 
-    <!-- 2) Diamètre (2 | 10 | 20) -->
-    <div class="btm-chipset" id="chipDiameter" role="group" aria-label="Diamètre ACC">
-      <button class="chip active" data-d="2"  aria-pressed="true">2</button>
-      <button class="chip"        data-d="10" aria-pressed="false">10</button>
-      <button class="chip"        data-d="20" aria-pressed="false">20</button>
+    <div class="tabs">
+      <button class="tab active" data-tab="tab-general">Général</button>
+      <button class="tab" data-tab="tab-poi">POI incendie</button>
+      <button class="tab" data-tab="tab-entreprises">Entreprises (EPCI)</button>
+      <button class="tab" data-tab="tab-export">Exports</button>
     </div>
 
-    <!-- 3) Participants -->
-    <button id="btnParticipants" class="btm-btn" aria-haspopup="dialog" aria-controls="sheetParticipants">
-      <span>Participants</span>
-    </button>
+    <div class="content">
+      <!-- Général -->
+      <section id="tab-general" class="tab-pane active">
+        <fieldset>
+          <legend>Projet</legend>
+          <div class="row">
+            <label class="small">Nom :</label>
+            <input id="projName" type="text" placeholder="Projet 1" style="flex:1">
+          </div>
+          <div class="row" style="margin-top:6px">
+            <button id="btnSave" class="btn">Enregistrer (local)</button>
+            <select id="projList" style="flex:1"></select>
+            <button id="btnLoad" class="btn secondary">Charger</button>
+            <button id="btnDel" class="btn secondary">Supprimer</button>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <button id="btnExportJson" class="btn">Exporter fichier</button>
+            <input id="inpImportJson" type="file" accept="application/json">
+          </div>
+          <div class="small" style="margin-top:6px">Participants : <span id="count">0</span></div>
+        </fieldset>
 
-    <!-- 3bis) EPCI -->
-    <button id="btnEPCI" class="btm-btn" aria-haspopup="dialog" aria-controls="sheetEPCI">
-      <span>EPCI</span>
-    </button>
+        <fieldset>
+          <legend>Recherche d’adresse</legend>
+          <div class="row">
+            <input id="qAddr" type="text" placeholder="Adresse, commune, CP" style="flex:1">
+            <button id="btnSearchAddr" class="btn">Rechercher</button>
+          </div>
+          <div id="addrResults" class="small" style="margin-top:6px"></div>
+        </fieldset>
+      </section>
 
-    <!-- 4) Conformité -->
-    <div class="btm-badge">
-      <span id="badgeCompliance" aria-live="polite">—</span>
+      <!-- POI -->
+      <section id="tab-poi" class="tab-pane">
+        <fieldset>
+          <legend>POI incendie & secours</legend>
+          <div class="small">Source OSM/Overpass — Isère (fire_station). Réessaie si surcharge.</div>
+          <div class="row" style="margin-top:6px">
+            <button id="btnLoadPoi38" class="btn">Charger POI Isère</button>
+            <label class="small"><input type="checkbox" id="chkPoi" checked> Afficher</label>
+            <button id="btnClearPoi" class="btn secondary">Effacer POI</button>
+          </div>
+          <div class="small" style="margin-top:6px">Chargés : <span id="poiCount">0</span> — Dans D/2 : <span id="poiInCircle">0</span></div>
+        </fieldset>
+      </section>
+
+      <!-- Entreprises -->
+      <section id="tab-entreprises" class="tab-pane">
+        <fieldset>
+          <legend>Annuaire Entreprises (EPCI)</legend>
+          <div class="small">Public API — sans clé. EPCI par défaut : <strong>243801024</strong> (CC du Massif du Vercors).</div>
+          <div class="row" style="margin-top:6px">
+            <input id="epciCode" type="text" placeholder="EPCI (ex. 243801024)" value="243801024" style="width:180px">
+            <button id="btnFetchEPCI" class="btn">Charger</button>
+            <button id="btnCsvEPCI" class="btn secondary" disabled>Exporter CSV</button>
+          </div>
+          <div class="small" style="margin-top:6px">Résultats : <span id="epciCount">0</span> — Pages : <span id="epciPages">0</span></div>
+          <label class="small" style="display:flex;align-items:center;gap:6px;margin-top:6px">
+            <input type="checkbox" id="chkFilterPerimeter" checked>
+            Ne conserver que les entreprises dans le périmètre (D/2)
+          </label>
+        </fieldset>
+      </section>
+
+      <!-- Exports -->
+      <section id="tab-export" class="tab-pane">
+        <fieldset>
+          <legend>Exports</legend>
+          <div class="row">
+            <button id="btnCsvParticipants" class="btn">Exporter CSV participants</button>
+            <button id="btnCsvPoi" class="btn">Exporter CSV POI</button>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <button id="btnGjPerimeter" class="btn secondary" disabled>Exporter GeoJSON périmètre</button>
+            <button id="btnGjPoints" class="btn secondary">Exporter GeoJSON points</button>
+          </div>
+        </fieldset>
+      </section>
     </div>
-  </nav>
-
-  <!-- ===== Sheet Producteur ===== -->
-  <aside id="sheetProducer" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sp-title" aria-hidden="true">
-    <div class="sheet-grabber" aria-hidden="true"></div>
-    <header class="sheet-head">
-      <h2 id="sp-title">Producteur</h2>
-      <button class="sheet-close" data-close="#sheetProducer" aria-label="Fermer">✕</button>
-    </header>
-
-    <section class="sheet-body">
-      <div class="group">
-        <label for="addr" class="lbl">Adresse (BAN)</label>
-        <div class="row">
-          <input id="addr" type="text" inputmode="text" autocomplete="street-address"
-                 placeholder="10 rue de la République, 38000 Grenoble">
-          <button id="btnGeocode" class="btn primary">Géocoder</button>
-        </div>
-      </div>
-
-      <div class="group">
-        <label for="addrFull" class="lbl">Adresse postale complète</label>
-        <input id="addrFull" type="text" readonly placeholder="—">
-      </div>
-
-      <div class="group">
-        <div class="row">
-          <div>
-            <label class="lbl" for="prodLat">Latitude</label>
-            <input id="prodLat" type="number" inputmode="decimal" step="0.000001" placeholder="45.191000">
-          </div>
-          <div>
-            <label class="lbl" for="prodLon">Longitude</label>
-            <input id="prodLon" type="number" inputmode="decimal" step="0.000001" placeholder="5.684000">
-          </div>
-        </div>
-        <div class="row">
-          <button id="btnSetProducerFromInputs" class="btn primary">Définir (coord.)</button>
-          <button id="btnLocate" class="btn">📍 Me localiser</button>
-          <button id="btnTapSetProducer" class="btn">Poser sur carte (1-tap)</button>
-        </div>
-      </div>
-
-      <div class="row right">
-        <button id="btnClearProducer" class="btn danger">Supprimer le producteur</button>
-      </div>
-    </section>
   </aside>
 
-  <!-- ===== Sheet Participants ===== -->
-  <aside id="sheetParticipants" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sa-title" aria-hidden="true">
-    <div class="sheet-grabber" aria-hidden="true"></div>
-    <header class="sheet-head">
-      <h2 id="sa-title">Participants</h2>
-      <button class="sheet-close" data-close="#sheetParticipants" aria-label="Fermer">✕</button>
-    </header>
+  <!-- Impression -->
+  <div class="print-header" id="printHeader">
+    <div class="left brand">
+      <svg viewBox="0 0 120 32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <rect x="0" y="0" width="120" height="32" rx="6" fill="#37C3AF"/>
+        <text x="60" y="19" text-anchor="middle" font-family="Montserrat, Arial, sans-serif" font-size="14" fill="#fff">ECHOME</text>
+      </svg>
+      <span class="title">ACC · Coordination</span>
+    </div>
+    <div class="right small" id="printMeta"></div>
+  </div>
 
-    <section class="sheet-body">
-      <div class="group">
-        <div class="row">
-          <div>
-            <label class="lbl" for="partNom">Nom</label>
-            <input id="partNom" type="text" placeholder="Collège Jean Moulin">
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label class="lbl" for="partLat">Latitude</label>
-            <input id="partLat" type="number" inputmode="decimal" step="0.000001" placeholder="lat">
-          </div>
-          <div>
-            <label class="lbl" for="partLon">Longitude</label>
-            <input id="partLon" type="number" inputmode="decimal" step="0.000001" placeholder="lon">
-          </div>
-        </div>
-        <div class="row">
-          <div>
-            <label class="lbl" for="partType">Type</label>
-            <select id="partType">
-              <option value="consumer">Consommateur</option>
-              <option value="producer">Producteur (secondaire)</option>
-            </select>
-          </div>
-          <div class="right">
-            <button id="btnAddPart" class="btn primary">Ajouter</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="group">
-        <button id="btnAddOnMap" class="btn">Ajouter sur la carte (1-tap)</button>
-      </div>
-
-      <div class="group">
-        <label class="lbl">Import CSV (Nom;Lat;Lon;Type)</label>
-        <div class="row">
-          <input id="fileCsv" type="file" accept=".csv,text/csv">
-          <button id="btnImportCsv" class="btn">Importer</button>
-          <button id="btnExportCsv" class="btn">Exporter</button>
-        </div>
-      </div>
-
-      <div id="listParts" class="list" aria-live="polite"></div>
-    </section>
-  </aside>
-
-  <!-- ===== Sheet EPCI ===== -->
-  <aside id="sheetEPCI" class="sheet" role="dialog" aria-modal="true" aria-labelledby="se-title" aria-hidden="true">
-    <div class="sheet-grabber" aria-hidden="true"></div>
-    <header class="sheet-head">
-      <h2 id="se-title">Mode EPCI (dérogatoire)</h2>
-      <button class="sheet-close" data-close="#sheetEPCI" aria-label="Fermer">✕</button>
-    </header>
-
-    <section class="sheet-body">
-      <div class="group">
-        <label class="lbl">Activer le mode EPCI</label>
-        <div class="row">
-          <button id="btnEPCIOn"  class="btn primary">Activer</button>
-          <button id="btnEPCIOff" class="btn">Désactiver</button>
-        </div>
-        <p class="small" style="color:#c6c9d1;margin:.5rem 0 0">
-          En mode EPCI, la conformité se fait par inclusion <b>dans le polygone EPCI</b> et les <b>types autorisés</b>.
-        </p>
-      </div>
-
-      <div class="group">
-        <label class="lbl">Polygone EPCI (GeoJSON Polygon ou MultiPolygon)</label>
-        <div class="row">
-          <input id="fileEPCI" type="file" accept=".geojson,application/geo+json,application/json">
-          <button id="btnLoadEPCI" class="btn">Charger</button>
-          <button id="btnClearEPCI" class="btn danger">Vider</button>
-        </div>
-      </div>
-
-      <div class="group">
-        <label class="lbl">Participants autorisés (mode EPCI)</label>
-        <div class="row">
-          <select id="epciPolicy">
-            <option value="public">Organismes publics / SEM / service public</option>
-            <option value="any">Tous (test)</option>
-          </select>
-        </div>
-      </div>
-    </section>
-  </aside>
-
-  <script src="./app.js"></script>
+  <!-- Leaflet JS + App -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin></script>
+  <script src="app.js"></script>
 </body>
 </html>
