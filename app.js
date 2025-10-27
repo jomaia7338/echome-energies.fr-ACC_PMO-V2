@@ -1,502 +1,589 @@
-// ================== Helpers ==================
-const $ = (id) => document.getElementById(id);
-const setStatus = (m) => { const el = $('status'); if (el) el.textContent = m; };
-const showError = (m) => {
-  const box = $('error-box'); if(!box) return;
-  box.classList.remove('hidden');
-  box.textContent += `[${new Date().toLocaleTimeString()}] ${m}\n`;
-  box.scrollTop = box.scrollHeight;
-  console.error(m);
-};
+/* app.js — ACC V2 (Leaflet)
+   - Périmètre D/2 (2/10/20/perso) + centre libre (MEC)
+   - Participants Prod/Cons
+   - POI SDIS/SIS/STIS/SLIS Isère (Overpass) sans doublons
+   - Entreprises EPCI Annuaire (sans clé) + export CSV
+   - Exports CSV/GeoJSON
+*/
 
-async function fetchJSON(url, { method='GET', body, headers={}, timeoutMs=15000, retries=1, expect='auto' } = {}){
-  const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort(), timeoutMs);
-  try{
-    const res = await fetch(url, { method, body, headers, signal: ctrl.signal, cache:'no-store' });
-    if(!res.ok){ const txt = await res.text().catch(()=> ''); throw new Error(`HTTP ${res.status} ${url} :: ${txt.slice(0,160)}`); }
-    const ct = res.headers.get('content-type') || '';
-    if(expect==='text') return await res.text();
-    if(expect==='json' || ct.includes('application/json')) return await res.json();
-    const raw = await res.text(); try{ return JSON.parse(raw); }catch{ return raw; }
-  }catch(e){
-    if(retries>0){ await new Promise(r=>setTimeout(r, 600)); return fetchJSON(url,{method,body,headers,timeoutMs:timeoutMs*1.5,retries:retries-1,expect}); }
-    throw e;
-  }finally{ clearTimeout(t); }
-}
+(function(){
+  // ---------- Utils ----------
+  const $ = sel => document.querySelector(sel);
+  const $all = sel => Array.from(document.querySelectorAll(sel));
+  const setText = (el, txt) => { if(el){ el.textContent = txt; } };
+  const setHTML = (el, html) => { if(el){ el.innerHTML = html; } };
 
-// BAN
-async function geocodeAdresse(q){
-  const url = `https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`;
-  try{
-    const json = await fetchJSON(url, { timeoutMs:10000, retries:1, expect:'json' });
-    const feat = json?.features?.[0]; if(!feat) throw new Error('Adresse introuvable');
-    const [lon, lat] = feat.geometry.coordinates; const label = feat.properties?.label || q;
-    return { lat, lon, label };
-  }catch(e){ showError(`Géocodage KO: ${e.message}`); return null; }
-}
-async function reverseBAN(lat, lon){
-  const url = `https://api-adresse.data.gouv.fr/reverse/?lat=${lat}&lon=${lon}`;
-  try{
-    const j = await fetchJSON(url, { timeoutMs:10000, retries:1, expect:'json' });
-    const feat = j?.features?.[0];
-    return feat?.properties?.label || null;
-  }catch{ return null; }
-}
-
-// Géodésie
-function haversineMeters(a,b){
-  const R=6371000, toRad=d=>d*Math.PI/180;
-  const dLat=toRad(b.lat-a.lat), dLon=toRad(b.lon-a.lon);
-  const lat1=toRad(a.lat), lat2=toRad(b.lat);
-  const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
-  return 2*R*Math.asin(Math.sqrt(h));
-}
-const distKm = (a,b)=>haversineMeters(a,b)/1000;
-
-// Validation coordonnées
-function isValidLatLon(lat, lon){
-  return Number.isFinite(lat) && Number.isFinite(lon)
-    && Math.abs(lat) <= 90 && Math.abs(lon) <= 180
-    && !(lat === 0 && lon === 0);
-}
-
-// ================== App state ==================
-const STORAGE_NS = 'echome-acc-v15';
-const STORAGE_LAST = `${STORAGE_NS}:lastProjectId`;
-const projectKey = (id) => `${STORAGE_NS}:project:${id}`;
-const newId = () => (crypto?.randomUUID?.() || String(Date.now()));
-
-const app = {
-  __BUILD__: '2025-10-21',
-  map:null,
-  projectId:null,
-
-  distMaxKm: 2,         // D = 2/10/20
-  producteur: null,     // {lat, lon}
-  participants: [],     // [{id, nom, lat, lon, type}]
-
-  // modes 1-tap
-  mode: null,           // 'set-producer' | 'add-part' | null
-
-  // Overlays & couches
-  layers:{
-    producer: null,
-    parts: L.layerGroup(),
-    worstLine: null, worstLabel: null,
-
-    // Boucle ACC centrée libre (déplaçable)
-    accCircle: null,      // L.circle (rayon = D/2)
-    accCenter: null       // L.marker draggable (centre libre)
+  function toRad(d){ return d * Math.PI/180; }
+  function haversineKm(a,b){
+    const R=6371, dLat=toRad(b.lat-a.lat), dLon=toRad(b.lng-a.lng);
+    const lat1=toRad(a.lat), lat2=toRad(b.lat);
+    const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
   }
-};
+  function niceNum(x, n=2){ return (x==null||isNaN(x))?'':Number(x).toFixed(n); }
 
-// ================== Map ==================
-function setupMap(){
-  app.map = L.map('map', { zoomControl:true }).setView([45.191, 5.684], 12);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'© OSM' }).addTo(app.map);
-  L.control.scale({ position:'topleft', imperial:false, maxWidth:160 }).addTo(app.map);
-  app.layers.parts.addTo(app.map);
-
-  // Clic (modes)
-  app.map.on('click', (e)=>{
-    if(app.mode === 'set-producer'){
-      setProducer({ lat:e.latlng.lat, lon:e.latlng.lng }, { reverse:true });
-      setStatus('Producteur défini'); app.mode = null; highlightMode();
-    } else if(app.mode === 'add-part'){
-      const nom = `Consommateur ${app.participants.length+1}`;
-      addParticipant({ id:newId(), nom, lat:e.latlng.lat, lon:e.latlng.lng, type:'consumer' });
-      setStatus('Participant ajouté'); app.mode = null; highlightMode();
+  // Minimal Enclosing Circle (local projection)
+  function projectLocal(pointsLL){
+    const lat0=pointsLL.reduce((s,p)=>s+p.lat,0)/pointsLL.length;
+    const lon0=pointsLL.reduce((s,p)=>s+p.lng,0)/pointsLL.length;
+    const P=pointsLL.map(p=>({x:(p.lng-lon0)*111.32*Math.cos(lat0*Math.PI/180), y:(p.lat-lat0)*111.32}));
+    return {lat0,lon0,P};
+  }
+  function unprojectLocal(lat0,lon0,x,y){ return {lat:lat0 + y/111.32, lng: lon0 + x/(111.32*Math.cos(lat0*Math.PI/180))}; }
+  function dist2(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
+  function circleBy2(a,b){ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,r:Math.sqrt(dist2(a,b))/2}; }
+  function circleBy3(a,b,c){
+    const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y;
+    const E=A*(a.x+b.x)+B*(a.y+b.y), F=C*(a.x+c.x)+D*(a.y+c.y), G=2*(A*(c.y-b.y)-B*(c.x-b.x));
+    if(Math.abs(G)<1e-12) return null;
+    const x=(D*E-B*F)/G, y=(A*F-C*E)/G, r=Math.hypot(x-a.x,y-a.y);
+    return {x,y,r};
+  }
+  function inCircle(c,p){ return Math.hypot(c.x-p.x,c.y-p.y) <= c.r + 1e-9; }
+  function minimalEnclosingCircle(pointsLL){
+    if(pointsLL.length===0) return null;
+    if(pointsLL.length===1) return {center:pointsLL[0], r:0};
+    const {lat0,lon0,P}=projectLocal(pointsLL);
+    let best=null;
+    for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){
+      const c=circleBy2(P[i],P[j]); if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c;
     }
-  });
-
-  // Appui long carte = ajouter un consommateur (terrain)
-  enableLongPressAddOnMap();
-
-  // Confort tactile
-  app.map.scrollWheelZoom.disable();
-  app.map.touchZoom.enable();
-  app.map.doubleClickZoom.enable();
-
-  // Instancie la boucle ACC (centre libre) au 1er affichage
-  ensureAccCircle();
-}
-
-// Appui long carte → ajoute un consommateur
-function enableLongPressAddOnMap(){
-  let t=null, started=false, startPt=null;
-  app.map.on('touchstart', (e)=>{
-    started = true;
-    const t0 = e.touches?.[0]; if(!t0) return;
-    startPt = { x:t0.clientX, y:t0.clientY };
-    t = setTimeout(()=>{
-      if(!started) return;
-      const pt = app.map.mouseEventToLatLng({ clientX:startPt.x, clientY:startPt.y, target: app.map._container });
-      const nom = `Consommateur ${app.participants.length+1}`;
-      addParticipant({ id:newId(), nom, lat:pt.lat, lon:pt.lng, type:'consumer' });
-      setStatus('Participant ajouté (pression longue)');
-    }, 650);
-  }, { passive:true });
-  app.map.on('touchmove', (e)=>{
-    const t1 = e.touches?.[0]; if(!t1||!startPt) return;
-    if(Math.hypot(t1.clientX-startPt.x, t1.clientY-startPt.y)>12){ started=false; if(t) clearTimeout(t); }
-  }, { passive:true });
-  app.map.on('touchend', ()=>{ started=false; if(t) clearTimeout(t); });
-}
-
-// ================== Sheets ==================
-function openSheet(id){ const el=$(id); if(!el) return; el.classList.add('open'); el.setAttribute('aria-hidden','false'); }
-function closeSheet(id){ const el=$(id); if(!el) return; el.classList.remove('open'); el.setAttribute('aria-hidden','true'); }
-
-// ================== Producer ==================
-function setProducer({lat, lon}, opts={}){
-  if(!isValidLatLon(lat, lon)){ showError('Coordonnées producteur invalides'); return; }
-  app.producteur = { lat, lon };
-  if($('prodLat')) $('prodLat').value = lat.toFixed(6);
-  if($('prodLon')) $('prodLon').value = lon.toFixed(6);
-
-  if(!app.layers.producer){
-    app.layers.producer = L.marker([lat,lon], {
-      draggable:true,
-      title:'Producteur',
-      icon: L.divIcon({ className:'prod-icon', html:'<div class="pin" style="width:18px;height:18px;border-radius:50%;background:#f5b841;border:2px solid #b58900"></div>', iconSize:[20,20], iconAnchor:[10,20] })
-    }).addTo(app.map);
-    app.layers.producer.on('dragend', async ()=>{
-      const { lat:la, lng:lo } = app.layers.producer.getLatLng();
-      setProducer({ lat:la, lon:lo }, { reverse:true });
-    });
-  } else {
-    app.layers.producer.setLatLng([lat,lon]);
+    for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++) for(let k=j+1;k<P.length;k++){
+      const c=circleBy3(P[i],P[j],P[k]); if(!c) continue;
+      if(P.every(p=>inCircle(c,p))) if(!best||c.r<best.r) best=c;
+    }
+    if(!best){
+      let max=-1,a=-1,b=-1;
+      for(let i=0;i<P.length;i++) for(let j=i+1;j<P.length;j++){ const d=dist2(P[i],P[j]); if(d>max){max=d;a=i;b=j;} }
+      best=circleBy2(P[a],P[b]);
+    }
+    const center=unprojectLocal(lat0,lon0,best.x,best.y);
+    return {center, r:best.r};
   }
 
-  (async ()=>{
-    if(opts.reverse && $('addrFull')){
-      const label = await reverseBAN(lat, lon); if(label) $('addrFull').value = label;
+  // ---------- State ----------
+  const statusEl = $('#status');
+  const colors = { producer:'#6D28D9', consumer:'#2e86de', poi:'#E10600' };
+  const eps = 1e-9;
+
+  const participants = []; // {id,name,type,lat,lng,marker}
+  const pois = [];         // {id,name,kind,lat,lng,marker}
+  let enterprises = [];    // normalized rows for CSV (Annuaire)
+  let uid = 0;
+
+  let vizCircle = null;    // Leaflet circle (radius meters) — purely visual
+  let circleCenter = null; // {lat,lng} centre libre (pour calculs et POI in-range)
+  let circleRadiusKm = 0;
+
+  // ---------- Map ----------
+  const map = L.map('map', { zoomControl: true }).setView([45.3, 5.6], 9);
+
+  // OSM France (comme MonEnergieCollective)
+  const osmfr = L.tileLayer('https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap France',
+    crossOrigin: true
+  });
+  // fallback osm.org
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    maxZoom: 19,
+    attribution:'© OpenStreetMap',
+    crossOrigin: true
+  });
+  osmfr.on('tileerror', ()=>{ if(!map.hasLayer(osm)) osm.addTo(map); if(map.hasLayer(osmfr)) map.removeLayer(osmfr); setText(statusEl,'Fond OSM France indisponible → fallback OSM.'); });
+  osmfr.addTo(map);
+
+  // Leaflet scale (m/km)
+  L.control.scale({imperial:false, metric:true, maxWidth:120}).addTo(map);
+
+  // Échelle 1:n (approx)
+  const RatioControl = L.Control.extend({
+    options:{position:'topright'},
+    onAdd:function(m){
+      const div=L.DomUtil.create('div','leaflet-control ratio-control');
+      this._div=div; this._map=m; this._update=this._update.bind(this);
+      m.on('zoomend moveend', this._update); this._update(); return div;
+    },
+    onRemove:function(m){ m.off('zoomend moveend', this._update); },
+    _update:function(){
+      const c=this._map.getCenter(), z=this._map.getZoom();
+      if(z==null){ this._div.textContent='Échelle —'; return; }
+      const mpp=156543.03392 * Math.cos(c.lat*Math.PI/180) / Math.pow(2,z);
+      const denom=Math.max(1, Math.round(mpp / 0.0002645833333));
+      this._div.textContent='Échelle ~ 1:'+denom.toLocaleString('fr-FR');
     }
-  })();
+  });
+  map.whenReady(()=> map.addControl(new RatioControl()));
 
-  afterModelChange();
-}
-function clearProducer(){
-  app.producteur = null;
-  if(app.layers.producer){ app.map.removeLayer(app.layers.producer); app.layers.producer = null; }
-  if($('addrFull')) $('addrFull').value = '';
-  afterModelChange();
-}
+  // Layers
+  const participantLayer = L.layerGroup().addTo(map);
+  const poiLayer = L.layerGroup().addTo(map);
 
-// ================== Participants ==================
-function bindMarkerDeletion(marker, payload){
-  const html = `<div style="min-width:160px">
-    <b>${payload.nom || 'Participant'}</b><br>
-    ${payload.type || 'consumer'}<br>
-    ${payload.lat.toFixed(5)}, ${payload.lon.toFixed(5)}<br>
-    <button id="del-${payload.id}" class="btn danger" style="margin-top:6px">Supprimer</button>
-  </div>`;
-  marker.bindPopup(html);
-  marker.on('popupopen', ()=>{
-    const btn = document.getElementById(`del-${payload.id}`);
-    if(btn) btn.onclick = ()=> { marker.closePopup(); removeParticipant(payload.id); setStatus('Participant supprimé'); };
-  });
-  let t=null, pressed=false;
-  marker.on('touchstart', ()=>{
-    pressed=true;
-    t=setTimeout(()=>{
-      if(!pressed) return;
-      if(confirm(`Supprimer "${payload.nom}" ?`)){ removeParticipant(payload.id); setStatus('Participant supprimé'); }
-    }, 650);
-  });
-  marker.on('touchend', ()=>{ pressed=false; if(t) clearTimeout(t); });
-}
-function addParticipant(p){
-  if(!isValidLatLon(p.lat, p.lon)){ showError('Coordonnées participant invalides'); return; }
-  app.participants.push(p);
-  afterModelChange();
-}
-function removeParticipant(id){
-  app.participants = app.participants.filter(x=>x.id!==id);
-  afterModelChange();
-}
-function redrawParticipants(){
-  app.layers.parts.clearLayers();
-  app.participants.forEach(p=>{
-    const color = p.type==='producer' ? '#f5b841' : '#4ea2ff';
-    const marker = L.circleMarker([p.lat,p.lon], { radius:6, color, weight:2, fillOpacity:.75 })
-      .addTo(app.layers.parts);
-    bindMarkerDeletion(marker, p);
-  });
-  const wrap = $('listParts'); if(wrap){ wrap.innerHTML='';
-    app.participants.forEach(p=>{
-      const div = document.createElement('div'); div.className='part';
-      div.innerHTML = `<div><div><b>${p.nom}</b> — ${p.type}</div><div class="meta">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</div></div><div><button class="btn danger" data-del="${p.id}">Supprimer</button></div>`;
-      div.querySelector('[data-del]').onclick = (e)=> removeParticipant(e.currentTarget.getAttribute('data-del'));
-      wrap.appendChild(div);
+  // Layout map height
+  const mapEl = $('#map');
+  function layout(){
+    const H=$('header.slim');
+    const h=Math.max(420, window.innerHeight - (H?H.getBoundingClientRect().height:0) - 16);
+    if(mapEl){ mapEl.style.height = h+'px'; map.invalidateSize(); }
+  }
+  window.addEventListener('resize', layout);
+  setTimeout(layout, 50);
+
+  // ---------- UI helpers ----------
+  function selectedType(){
+    const r = document.querySelector('input[name="ptype"]:checked');
+    return r ? r.value : 'consumer';
+  }
+  function currentDiameter(){
+    const sel = $('#limitSel');
+    if(!sel) return 20;
+    const v = sel.value;
+    if(v==='custom'){
+      const k = parseFloat($('#customKm')?.value || '0');
+      return (!isFinite(k)||k<=0)?20:k;
+    }
+    return parseFloat(v||'20');
+  }
+  function updateCount(){
+    const c=$('#count');
+    if(!c) return;
+    const n=participants.length, np=participants.filter(p=>p.type==='producer').length;
+    c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.';
+  }
+
+  // ---------- Participants ----------
+  function makeParticipantPopup(entry){
+    const wrap=document.createElement('div');
+    const title=document.createElement('strong'); title.textContent=entry.name||''; wrap.appendChild(title);
+    wrap.appendChild(document.createElement('br'));
+    wrap.appendChild(document.createTextNode(entry.type));
+    const box=document.createElement('div'); box.style.marginTop='6px'; box.style.display='flex'; box.style.gap='6px'; box.style.flexWrap='wrap';
+    const bRen=document.createElement('button'); bRen.className='btn secondary'; bRen.textContent='Renommer';
+    bRen.onclick=()=>{ const nn=prompt('Nouveau nom :', entry.name||''); if(nn&&nn.trim()){ entry.name=nn.trim(); entry.marker.setPopupContent(makeParticipantPopup(entry)); entry.marker.bindTooltip(`${entry.name} (${entry.type})`);} };
+    const bDel=document.createElement('button'); bDel.className='btn secondary'; bDel.textContent='Supprimer';
+    bDel.onclick=()=> removeParticipant(entry.id);
+    box.appendChild(bRen); box.appendChild(bDel); wrap.appendChild(box);
+    return wrap;
+  }
+  function addParticipant(lat,lng,type,name){
+    const id=++uid, label=name||`${type} ${id}`;
+    const m=L.circleMarker([lat,lng],{radius:7,color:colors[type]||'#333',weight:2,fillColor:colors[type]||'#333',fillOpacity:0.3}).addTo(participantLayer);
+    const entry={id,name:label,type,lat,lng,marker:m};
+    m.bindTooltip(`${label} (${type})`);
+    m.bindPopup(makeParticipantPopup(entry));
+    m.on('contextmenu', ()=> removeParticipant(id)); // clic long mobile = menu contextuel aussi
+    participants.push(entry);
+    refreshACC(false); // ne pas auto-fit sur ajout ponctuel
+  }
+  function removeParticipant(id){
+    const i=participants.findIndex(p=>p.id===id);
+    if(i>-1){ participantLayer.removeLayer(participants[i].marker); participants.splice(i,1); refreshACC(false); }
+  }
+  map.on('click', e=> addParticipant(e.latlng.lat, e.latlng.lng, selectedType()));
+
+  // ---------- ACC (diameter/2) ----------
+  function clearVizCircle(){
+    if(vizCircle){ map.removeLayer(vizCircle); vizCircle=null; }
+    circleCenter=null; circleRadiusKm=0;
+  }
+  function styleParticipants(center, R){
+    participants.forEach(p=>{
+      const inside = haversineKm(center,{lat:p.lat,lng:p.lng}) <= R + eps;
+      p.marker.setStyle({
+        color: inside ? colors[p.type] : '#8b8b8b',
+        weight: inside ? 3 : 2,
+        fillColor: colors[p.type],
+        fillOpacity: inside ? 0.5 : 0.15
+      });
     });
   }
-}
+  function refreshACC(autoFitBounds=true){
+    updateCount();
+    const D=currentDiameter(); const R=D/2;
+    clearVizCircle();
 
-// ================== Boucle ACC : cercle centre libre ==================
-function ensureAccCircle(){
-  const defaultCenter = app.producteur ? [app.producteur.lat, app.producteur.lon] : app.map.getCenter();
-  const radiusMeters = (app.distMaxKm/2) * 1000; // D/2
+    if(!participants.length){
+      setText(statusEl,'Ajoutez un producteur et des consommateurs.'); updatePoiInRange(null,null); return;
+    }
+    if(!participants.some(p=>p.type==='producer')){
+      setText(statusEl,'Aucun producteur détecté.'); updatePoiInRange(null,null); return;
+    }
+    const mec = minimalEnclosingCircle(participants.map(p=>({lat:p.lat,lng:p.lng})));
+    if(!mec){ setText(statusEl,'Centre libre non calculable.'); updatePoiInRange(null,null); return; }
 
-  if(!app.layers.accCircle){
-    app.layers.accCircle = L.circle(defaultCenter, {
-      radius: radiusMeters,
-      color: '#6e5bfd',
-      weight: 3, opacity: 1,
-      fillOpacity: 0.06, fillColor: '#6e5bfd',
-      dashArray: '8,6'
-    }).addTo(app.map);
-  }else{
-    app.layers.accCircle.setLatLng(defaultCenter);
-    app.layers.accCircle.setRadius(radiusMeters);
+    const pass = mec.r <= R + eps;
+    vizCircle = L.circle([mec.center.lat,mec.center.lng],{
+      radius:R*1000, color:'#6D28D9', weight:2, fill:false, opacity:0.9, dashArray:'6 6'
+    }).addTo(map).bindTooltip('Centre libre (visualisation) — centre non défini',{className:'center-free-tip'});
+
+    circleCenter = {lat:mec.center.lat, lng:mec.center.lng};
+    circleRadiusKm = R;
+
+    styleParticipants(circleCenter, R);
+
+    if(autoFitBounds && participants.length>1){
+      const g=L.featureGroup(participants.map(p=>p.marker));
+      map.fitBounds(g.getBounds().pad(0.25));
+    }
+
+    const outside = participants.filter(p=> haversineKm(circleCenter,{lat:p.lat,lng:p.lng}) > R + eps).map(p=> p.name||p.type);
+    if(pass){
+      setHTML(statusEl, `<strong>Conforme</strong> — D=${D} km · r*=${niceNum(mec.r)} km ≤ D/2=${niceNum(R)} km.`, 'ok');
+      statusEl.className='ok';
+    }else{
+      setHTML(statusEl, `<strong>Non conforme</strong> — D=${D} km · r*=${niceNum(mec.r)} km > D/2=${niceNum(R)} km · Points limitants : ${outside.join(', ')||'—'}`, 'ko');
+      statusEl.className='ko';
+    }
+
+    // Juste info visuelle
+    updatePoiInRange(circleCenter, R);
   }
 
-  if(!app.layers.accCenter){
-    // marqueur centre (draggable) — centre libre
-    app.layers.accCenter = L.marker(defaultCenter, {
-      draggable:true,
-      title:'Centre de la boucle ACC (déplaçable)',
-      icon: L.divIcon({ className:'acc-center', html:'<div style="width:14px;height:14px;border-radius:50%;background:#fff;border:3px solid #6e5bfd;box-shadow:0 0 0 2px rgba(110,91,253,.35)"></div>', iconSize:[14,14], iconAnchor:[7,7] })
-    }).addTo(app.map);
-
-    // Drag du centre → déplace le cercle
-    app.layers.accCenter.on('drag', ()=>{
-      const { lat, lng } = app.layers.accCenter.getLatLng();
-      app.layers.accCircle.setLatLng([lat, lng]);
+  // ---------- POI SDIS Isère ----------
+  let poiLoadedOnce = false; // évite cumul
+  function addPOI(lat,lng,kind,name){
+    const id=++uid, label=name||kind||'POI';
+    const m=L.circleMarker([lat,lng],{radius:6,color:colors.poi,weight:2,fillColor:colors.poi,fillOpacity:0.25}).addTo(poiLayer);
+    const entry={id,name:label,kind,lat,lng,marker:m};
+    m.bindTooltip(`${label} — ${kind||'incendie'}`);
+    pois.push(entry);
+  }
+  function updatePoiInRange(center, R){
+    const poiInRangeEl = $('#poiInRange');
+    if(!poiInRangeEl) return;
+    if(!center || R==null){ setText(poiInRangeEl,'0'); return; }
+    let cnt=0;
+    pois.forEach(p=>{
+      const inside = haversineKm(center,{lat:p.lat,lng:p.lng}) <= R + eps;
+      if(inside) cnt++;
+      // Style léger pour feedback
+      p.marker.setStyle({
+        color: inside ? colors.poi : '#8b8b8b',
+        weight: inside ? 4 : 2,
+        fillColor: colors.poi,
+        fillOpacity: inside ? 0.55 : 0.15
+      });
     });
-    app.layers.accCenter.on('dragend', ()=> setStatus('Centre de la boucle déplacé'));
-  }else{
-    app.layers.accCenter.setLatLng(defaultCenter);
+    setText(poiInRangeEl, String(cnt));
   }
-}
-
-// Pour mettre à jour le rayon quand on change D
-function updateAccCircleRadius(){
-  if(!app.layers.accCircle){ ensureAccCircle(); return; }
-  const r = (app.distMaxKm/2) * 1000;
-  app.layers.accCircle.setRadius(r);
-}
-
-// ================== Pire paire (critère juridique) ==================
-function worstPair(points){
-  let worst={d:0,a:null,b:null};
-  for(let i=0;i<points.length;i++){
-    for(let j=i+1;j<points.length;j++){
-      const d = distKm(points[i], points[j]);
-      if(d>worst.d) worst = { d, a:points[i], b:points[j] };
+  function kindFromTags(tags){
+    const t=(s)=>String(s||'').toUpperCase();
+    const name=t(tags.name), op=t(tags.operator);
+    if(/SDMIS/.test(name)||/SDMIS/.test(op)) return 'SDMIS';
+    if(/STIS/.test(name)||/STIS/.test(op)) return 'STIS';
+    if(/SLIS/.test(name)||/SLIS/.test(op)) return 'SLIS';
+    if(/SDIS/.test(name)||/SDIS/.test(op)) return 'SDIS';
+    return 'Caserne';
+  }
+  function parseOverpassAndAdd(j, seen){
+    const els=Array.isArray(j.elements)?j.elements:[];
+    let ok=0;
+    for(const el of els){
+      let lat=null,lng=null;
+      if(el.type==='node'){ lat=el.lat; lng=el.lon; }
+      else if(el.center){ lat=el.center.lat; lng=el.center.lon; }
+      if(lat==null || lng==null) continue;
+      const tags=el.tags||{};
+      const label=tags.name || tags['addr:place'] || tags['addr:city'] || 'Caserne';
+      const key=`${(label||'').toLowerCase()}|${lat.toFixed(5)}|${lng.toFixed(5)}`;
+      if(seen.has(key)) continue; seen.add(key);
+      addPOI(lat,lng, kindFromTags(tags), label); ok++;
     }
+    return ok;
   }
-  return worst;
-}
-function clearWorstOverlay(){
-  if(app.layers.worstLine){ app.map.removeLayer(app.layers.worstLine); app.layers.worstLine=null; }
-  if(app.layers.worstLabel){ app.map.removeLayer(app.layers.worstLabel); app.layers.worstLabel=null; }
-}
-function drawWorstOverlay(w, D){
-  clearWorstOverlay();
-  if(!w?.a || !w?.b) return;
-  const ok = w.d <= D;
-  app.layers.worstLine = L.polyline([[w.a.lat,w.a.lon],[w.b.lat,w.b.lon]], { color: ok ? '#2ecc71' : '#e67e22', weight:4, opacity:.9 }).addTo(app.map);
-  const mid = { lat:(w.a.lat+w.b.lat)/2, lon:(w.a.lon+w.b.lon)/2 };
-  app.layers.worstLabel = L.marker([mid.lat, mid.lon], { icon: L.divIcon({ className:'maxpair-label', html:`${w.d.toFixed(2)} km / ≤ ${D} km` }) }).addTo(app.map);
-}
+  async function loadPoiIsere(){
+    const btn=$('#loadPoiIsere'); if(btn){ btn.disabled=true; }
+    const prev = btn?btn.textContent:'';
+    if(btn) btn.textContent='Chargement…';
 
-// ================== Conformité ==================
-function updateCompliance(){
-  const pts = [];
-  if(app.producteur) pts.push({ ...app.producteur, nom:'Producteur', type:'producer' });
-  app.participants.forEach(p=>pts.push(p));
-
-  // MAJ cercle (au cas où on vient d’ajouter/supprimer)
-  ensureAccCircle();
-  updateAccCircleRadius();
-
-  if(pts.length < 2){
-    clearWorstOverlay();
-    $('badgeCompliance').textContent = '—';
-    setStatus(`D = ${app.distMaxKm} km — poser des points`);
-    return;
-  }
-  const w = worstPair(pts);
-  const ok = w.d <= app.distMaxKm;
-  $('badgeCompliance').textContent = ok ? '✔︎' : '✖︎';
-  setStatus(`D = ${app.distMaxKm} km — pire paire ${w.d.toFixed(2)} km`);
-  drawWorstOverlay(w, app.distMaxKm);
-}
-
-// ================== Persistence ==================
-function getPayload(){
-  // Sauvegarde aussi le centre libre de la boucle
-  const center = app.layers.accCenter ? app.layers.accCenter.getLatLng() : null;
-  const accCenter = center ? { lat:center.lat, lon:center.lng } : null;
-
-  return { __v:3, savedAt:new Date().toISOString(), state:{
-    distMaxKm: app.distMaxKm,
-    producteur: app.producteur,
-    participants: app.participants,
-    accCenter
-  }};
-}
-function saveProject(){
-  try{
-    if(!app.projectId) app.projectId = newId();
-    localStorage.setItem(projectKey(app.projectId), JSON.stringify(getPayload()));
-    localStorage.setItem(STORAGE_LAST, app.projectId);
-    const url = new URL(location.href); url.searchParams.set('project', app.projectId); history.replaceState(null,'',url.toString());
-  }catch(e){ showError(`Sauvegarde KO: ${e.message}`); }
-}
-function loadProjectById(id){
-  try{ const raw = localStorage.getItem(projectKey(id)); return raw?JSON.parse(raw):null; }
-  catch(e){ showError('Projet corrompu'); return null; }
-}
-function applyPayload(payload){
-  const s = payload?.state || {};
-  app.distMaxKm = s.distMaxKm ?? 2;
-  app.producteur = s.producteur || null;
-  app.participants = Array.isArray(s.participants) ? s.participants : [];
-
-  // sync chips
-  document.querySelectorAll('#chipDiameter .chip').forEach(b=>{
-    const d = Number(b.getAttribute('data-d')); const active = d === app.distMaxKm;
-    b.classList.toggle('active', active); b.setAttribute('aria-pressed', active ? 'true':'false');
-  });
-
-  // Producteur
-  if(app.producteur && isValidLatLon(app.producteur.lat, app.producteur.lon)){
-    setProducer(app.producteur, { reverse:true });
-    app.map.setView([app.producteur.lat, app.producteur.lon], 13);
-  }else{
-    clearProducer();
-  }
-
-  // Centre boucle ACC (si sauvegardé)
-  ensureAccCircle();
-  if(s.accCenter && isValidLatLon(s.accCenter.lat, s.accCenter.lon)){
-    app.layers.accCenter.setLatLng([s.accCenter.lat, s.accCenter.lon]);
-    app.layers.accCircle.setLatLng([s.accCenter.lat, s.accCenter.lon]);
-  }
-  afterModelChange();
-}
-
-// ================== UI wiring ==================
-function highlightMode(){
-  if(app.mode==='set-producer') setStatus('Mode: poser le producteur (tap)');
-  else if(app.mode==='add-part') setStatus('Mode: ajouter un participant (tap)');
-  else setStatus('Prêt');
-}
-
-function wireSheets(){
-  $('btnProducer')?.addEventListener('click', ()=> openSheet('sheetProducer'));
-  document.querySelectorAll('[data-close="#sheetProducer"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetProducer')));
-  $('btnParticipants')?.addEventListener('click', ()=> openSheet('sheetParticipants'));
-  document.querySelectorAll('[data-close="#sheetParticipants"]').forEach(el=> el.addEventListener('click', ()=> closeSheet('sheetParticipants')));
-}
-
-function wireProducer(){
-  $('btnGeocode')?.addEventListener('click', async ()=>{
-    const q = $('addr')?.value?.trim(); if(!q) return showError('Saisir une adresse');
-    setStatus('Géocodage…');
-    const r = await geocodeAdresse(q); if(!r) return setStatus('Géocodage impossible');
-    setProducer({ lat:r.lat, lon:r.lon }); $('addrFull') && ( $('addrFull').value = r.label || q );
-    app.map.setView([r.lat, r.lon], 14); setStatus('Adresse localisée');
-  });
-  $('btnLocate')?.addEventListener('click', ()=>{
-    if(!navigator.geolocation) return showError('Géolocalisation non supportée');
-    setStatus('Géolocalisation…');
-    navigator.geolocation.getCurrentPosition(async pos=>{
-      const { latitude, longitude } = pos.coords;
-      setProducer({ lat: latitude, lon: longitude }, { reverse:true });
-      app.map.setView([latitude, longitude], 15);
-      setStatus('Position GPS acquise');
-    }, err=>{
-      showError(`GPS KO: ${err.message||'inconnu'}`); setStatus('Géolocalisation indisponible');
-    }, { enableHighAccuracy:true, timeout:10000, maximumAge:0 });
-  });
-  $('btnTapSetProducer')?.addEventListener('click', ()=>{ app.mode = 'set-producer'; closeSheet('sheetProducer'); highlightMode(); });
-  $('btnSetProducerFromInputs')?.addEventListener('click', ()=>{
-    const la = Number($('prodLat')?.value), lo = Number($('prodLon')?.value);
-    if(!isValidLatLon(la, lo)) return showError('Coordonnées producteur invalides');
-    setProducer({ lat:la, lon:lo }, { reverse:true }); app.map.setView([la, lo], 14);
-    setStatus('Producteur défini (coord.)');
-  });
-  $('btnClearProducer')?.addEventListener('click', ()=> { clearProducer(); setStatus('Producteur supprimé'); });
-}
-
-function wireParticipants(){
-  $('btnAddPart')?.addEventListener('click', ()=>{
-    const nom = $('partNom')?.value?.trim() || `Consommateur ${app.participants.length+1}`;
-    const la = Number($('partLat')?.value), lo = Number($('partLon')?.value);
-    const type = ($('partType')?.value || 'consumer').toLowerCase();
-    if(!isValidLatLon(la, lo)) return showError('Coordonnées invalides');
-    addParticipant({ id:newId(), nom, lat:la, lon:lo, type });
-    $('partNom').value=''; $('partLat').value=''; $('partLon').value='';
-    setStatus('Participant ajouté');
-  });
-  $('btnAddOnMap')?.addEventListener('click', ()=>{ app.mode='add-part'; closeSheet('sheetParticipants'); highlightMode(); });
-  $('btnImportCsv')?.addEventListener('click', async ()=>{
-    const f = $('fileCsv')?.files?.[0]; if(!f) return showError('Aucun fichier CSV');
-    const text = await f.text(); const rows = text.trim().split(/\r?\n/); const out=[];
-    const startIdx = rows[0]?.toLowerCase().includes('nom;') ? 1 : 0;
-    for(let i=startIdx;i<rows.length;i++){
-      const [nom, lat, lon, typeRaw] = rows[i].split(';').map(s=>s?.trim());
-      const la=Number(lat), lo=Number(lon), type=(typeRaw||'consumer').toLowerCase();
-      if(nom && isValidLatLon(la, lo)) out.push({ id:newId(), nom, lat:la, lon:lo, type });
+    // Si déjà chargé, on nettoie avant de recharger (pas de cumul)
+    if(poiLoadedOnce){
+      pois.splice(0).forEach(p=> poiLayer.removeLayer(p.marker));
+      setText($('#poiStats'),'0');
     }
-    out.forEach(addParticipant);
-    setStatus(`Importé ${out.length} participants`);
-  });
-  $('btnExportCsv')?.addEventListener('click', ()=>{
-    const rows = [['Nom','Lat','Lon','Type'], ...app.participants.map(p=>[p.nom,p.lat,p.lon,p.type])];
-    const csv = rows.map(r=>r.join(';')).join('\n');
-    const blob = new Blob([csv], { type:'text/csv;charset=utf-8' });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `participants_${new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')}.csv`; a.click();
-    URL.revokeObjectURL(a.href);
-  });
-}
 
-function wireDiameterChips(){
-  document.querySelectorAll('#chipDiameter .chip').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      document.querySelectorAll('#chipDiameter .chip').forEach(b=>{ b.classList.remove('active'); b.setAttribute('aria-pressed','false'); });
-      btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
-      app.distMaxKm = Number(btn.getAttribute('data-d')) || 2;
-      updateAccCircleRadius();
-      onProjectChanged();
+    const queries = [
+`[out:json][timeout:60];
+(
+  rel["admin_level"="6"]["ref:INSEE"="38"];
+  rel["admin_level"="6"]["name"="Isère"];
+  rel["admin_level"="6"]["name"="Isere"];
+); map_to_area->.a;
+(
+  node["amenity"="fire_station"](area.a);
+  way["amenity"="fire_station"](area.a);
+  relation["amenity"="fire_station"](area.a);
+); out center tags;`,
+`[out:json][timeout:60];
+(
+  node["amenity"="fire_station"](45.00,5.10,45.80,6.45);
+  way["amenity"="fire_station"](45.00,5.10,45.80,6.45);
+  relation["amenity"="fire_station"](45.00,5.10,45.80,6.45);
+); out center tags;`
+    ];
+    const endpoints=[
+      'https://overpass-api.de/api/interpreter',
+      'https://overpass.kumi.systems/api/interpreter',
+      'https://lz4.overpass-api.de/api/interpreter'
+    ];
+
+    let success=false; const seen=new Set();
+    try{
+      for(const q of queries){
+        if(success) break;
+        for(const ep of endpoints){
+          try{
+            const r=await fetch(ep+'?data='+encodeURIComponent(q),{headers:{'Accept':'application/json'}});
+            if(!r.ok) throw new Error('HTTP '+r.status);
+            const j=await r.json();
+            const k=parseOverpassAndAdd(j, seen);
+            if(k>0){ success=true; break; }
+          }catch(e){ /* endpoint suivant */ }
+        }
+      }
+      if(success){
+        poiLoadedOnce = true;
+        setText(statusEl,'POI Isère chargés.');
+      } else {
+        setText(statusEl,'Aucun POI trouvé (aire/bbox). Vérifie le réseau.');
+      }
+    }finally{
+      const stats = $('#poiStats');
+      if(stats) setText(stats, String(pois.length));
+      if(btn){ btn.disabled=false; btn.textContent=prev||'Charger POI Isère'; }
+    }
+    // MàJ in-range si un périmètre est visible
+    if(circleCenter && circleRadiusKm) updatePoiInRange(circleCenter, circleRadiusKm);
+  }
+
+  // ---------- Annuaire Entreprises (EPCI) ----------
+  const EPCI_CODE = '243801024'; // CC du Massif du Vercors
+  async function fetchEpciPage(epciCode, page=1, perPage=100){
+    const url = `https://recherche-entreprises.api.gouv.fr/search?epci=${encodeURIComponent(epciCode)}&etat=active&per_page=${perPage}&page=${page}`;
+    const r = await fetch(url, { headers: { 'Accept': 'application/json' }});
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    return r.json();
+  }
+  function normalizeEnterprise(e){
+    const siege = e.siege || {};
+    const coords = siege.coordonnees || {};
+    return {
+      siren: e.siren || '',
+      siret: siege.siret || e.siret || '',
+      nom_complet: e.nom_complet || e.nom_raison_sociale || '',
+      naf: e.naf || e.activite_principale || '',
+      libelle_naf: e.libelle_naf || e.libelle_activite_principale || '',
+      date_creation: e.date_creation || '',
+      etat: e.etat_administratif || e.etat || '',
+      categorie: e.categorie_entreprise || '',
+      tranche_effectif: e.tranche_effectif_salarie || '',
+      adresse: siege.adresse || e.adresse || '',
+      code_postal: siege.code_postal || e.code_postal || '',
+      commune: siege.commune || e.commune || '',
+      epci: siege.epci || e.epci || '',
+      lat: (coords.lat ?? e.latitude ?? ''),
+      lon: (coords.lon ?? e.longitude ?? '')
+    };
+  }
+  function exportCSV(filename, rows, header){
+    if(!rows || !rows.length) return;
+    const esc = v => `"${String(v??'').replace(/"/g,'""')}"`;
+    const csv = [header.join(";"),
+      ...rows.map(r=> header.map(h=>esc(r[h])).join(";"))
+    ].join("\n");
+    const blob = new Blob([csv],{type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+  function exportGeoJSON(filename, features){
+    const fc = { type:'FeatureCollection', features };
+    const blob = new Blob([JSON.stringify(fc,null,2)],{type:'application/geo+json'});
+    const url = URL.createObjectURL(blob);
+    const a=document.createElement('a'); a.href=url; a.download=filename; a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------- Exports helpers ----------
+  function exportParticipantsCSV(){
+    const header = ["id","name","type","lat","lng"];
+    const rows = participants.map(p=>({id:p.id,name:p.name,type:p.type,lat:p.lat,lng:p.lng}));
+    exportCSV('participants.csv', rows, header);
+  }
+  function exportPoiCSV(){
+    const header = ["id","name","kind","lat","lng"];
+    const rows = pois.map(p=>({id:p.id,name:p.name,kind:p.kind,lat:p.lat,lng:p.lng}));
+    exportCSV('poi_sdis.csv', rows, header);
+  }
+  function exportParticipantsGeo(){
+    const feats = participants.map(p=>({
+      type:'Feature',
+      properties:{ id:p.id, name:p.name, type:p.type },
+      geometry:{ type:'Point', coordinates:[p.lng, p.lat] }
+    }));
+    exportGeoJSON('participants.geojson', feats);
+  }
+  function exportPoiGeo(){
+    const feats = pois.map(p=>({
+      type:'Feature',
+      properties:{ id:p.id, name:p.name, kind:p.kind },
+      geometry:{ type:'Point', coordinates:[p.lng, p.lat] }
+    }));
+    exportGeoJSON('poi_sdis.geojson', feats);
+  }
+  function exportPerimeterGeo(){
+    if(!circleCenter || !circleRadiusKm){ setText(statusEl,'Aucun périmètre à exporter.'); return; }
+    // cercle en GeoJSON (approx 128 segments)
+    const n=128, coords=[];
+    const Rkm = circleRadiusKm;
+    for(let i=0;i<=n;i++){
+      const ang = (i/n)*2*Math.PI;
+      const dx = (Rkm/111.32) * Math.cos(ang);
+      const dy = (Rkm/111.32) * Math.sin(ang);
+      const lat = circleCenter.lat + dy;
+      const lng = circleCenter.lng + dx / Math.cos(circleCenter.lat*Math.PI/180);
+      coords.push([lng, lat]);
+    }
+    const feat = {
+      type:'Feature',
+      properties:{ name:`ACC D=${(2*Rkm).toFixed(2)}km`, radius_km:Rkm, center:[circleCenter.lng,circleCenter.lat] },
+      geometry:{ type:'Polygon', coordinates:[coords] }
+    };
+    exportGeoJSON('perimetre_acc.geojson', [feat]);
+  }
+
+  // ---------- Buttons / Events (defensive binding) ----------
+  const fitBtn = $('#fitBtn');
+  if(fitBtn) fitBtn.addEventListener('click', ()=>{
+    if(participants.length){
+      const g=L.featureGroup(participants.map(p=>p.marker));
+      map.fitBounds(g.getBounds().pad(0.25));
+    }
+  });
+
+  const clearBtn = $('#clearBtn');
+  if(clearBtn) clearBtn.addEventListener('click', ()=>{
+    participants.splice(0).forEach(p=> participantLayer.removeLayer(p.marker));
+    clearVizCircle();
+    setText(statusEl,'Participants effacés.');
+    updateCount();
+  });
+
+  const locateBtn = $('#locateBtn');
+  if(locateBtn) locateBtn.addEventListener('click', ()=>{
+    if(!navigator.geolocation){ setText(statusEl,'Géolocalisation non supportée.'); return; }
+    navigator.geolocation.getCurrentPosition(pos=>{
+      const lat=pos.coords.latitude, lng=pos.coords.longitude, acc=pos.coords.accuracy||50;
+      const icon=L.divIcon({className:'myloc-pin', html:`<svg width="28" height="28" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg"><path d="M16 2C10.477 2 6 6.477 6 12c0 7 10 18 10 18s10-11 10-18C26 6.477 21.523 2 16 2z" fill="#111827"/><circle cx="16" cy="12" r="5" fill="#34D399"/></svg>`, iconSize:[28,28], iconAnchor:[14,28], popupAnchor:[0,-28]});
+      L.marker([lat,lng],{icon, zIndexOffset:1000}).addTo(map).bindTooltip('Vous êtes ici');
+      L.circle([lat,lng],{radius:acc,color:'#34D399',weight:1,opacity:0.5,fillOpacity:0.06}).addTo(map);
+      map.setView([lat,lng], 15);
+      setText(statusEl,`Localisé (~±${Math.round(acc)} m).`);
+    }, ()=> setText(statusEl,'Géolocalisation refusée / indisponible.'), {enableHighAccuracy:true, timeout:8000, maximumAge:30000});
+  });
+
+  const limitSel = $('#limitSel');
+  if(limitSel) limitSel.addEventListener('change', (e)=>{
+    const v=e.target.value; const custom=$('#customKm');
+    if(custom) custom.style.display=(v==='custom')?'inline-block':'none';
+    refreshACC(false);
+  });
+  const customKm = $('#customKm');
+  if(customKm) customKm.addEventListener('input', ()=> refreshACC(false));
+
+  const loadPoiBtn = $('#loadPoiIsere');
+  if(loadPoiBtn) loadPoiBtn.addEventListener('click', loadPoiIsere);
+
+  const togglePoi = $('#togglePoi');
+  if(togglePoi) togglePoi.addEventListener('change', (e)=>{
+    if(e.target.checked){ poiLayer.addTo(map); }
+    else { map.removeLayer(poiLayer); }
+  });
+
+  // Entreprises
+  const epciFetchBtn = $('#epciFetchBtn');
+  const epciCsvBtn = $('#epciCsvBtn');
+  const epciCountEl = $('#epciCount');
+  const epciPagesEl = $('#epciPages');
+
+  if(epciFetchBtn){
+    epciFetchBtn.addEventListener('click', async ()=>{
+      let page=1, total=0; const PER=100;
+      enterprises = [];
+      if(epciCsvBtn) epciCsvBtn.disabled = true;
+      epciFetchBtn.disabled = true; const prev=epciFetchBtn.textContent; epciFetchBtn.textContent='Chargement…';
+      try{
+        while(true){
+          const data = await fetchEpciPage(EPCI_CODE, page, PER);
+          const list = Array.isArray(data.results)?data.results:[];
+          if(!list.length) break;
+          enterprises.push(...list.map(normalizeEnterprise));
+          total += list.length;
+          if(epciCountEl) setText(epciCountEl, String(total));
+          if(epciPagesEl) setText(epciPagesEl, String(page));
+          page++;
+          await new Promise(r=>setTimeout(r,120)); // souffle
+        }
+        setText(statusEl, total ? `Entreprises chargées : ${total}.` : `Aucun résultat pour l’EPCI ${EPCI_CODE}.`);
+        if(epciCsvBtn) epciCsvBtn.disabled = total===0;
+      }catch(e){
+        setText(statusEl, 'Erreur EPCI : '+(e.message||e));
+      }finally{
+        epciFetchBtn.disabled=false; epciFetchBtn.textContent=prev||'Lister entreprises de l’EPCI 243801024';
+      }
     });
-  });
-}
-
-// ================== Reactions ==================
-function afterModelChange(){
-  redrawParticipants();
-  updateCompliance();   // pire paire + MAJ cercle
-  saveProject();
-}
-function onProjectChanged(){
-  updateCompliance();
-  saveProject();
-}
-
-// ================== Bootstrap ==================
-(function init(){
-  try{
-    setStatus('Initialisation…');
-    setupMap();
-    wireSheets();
-    wireProducer();
-    wireParticipants();
-    wireDiameterChips();
-
-    const fromUrl = new URLSearchParams(location.search).get('project')
-                 || localStorage.getItem(STORAGE_LAST);
-    if(fromUrl){
-      const payload = loadProjectById(fromUrl);
-      if(payload){ app.projectId = fromUrl; applyPayload(payload); setStatus('Projet chargé'); return; }
-    }
-    app.projectId = newId(); saveProject();
-    setStatus('Prêt');
-  }catch(e){
-    showError(`Init KO: ${e.message}`); setStatus('Erreur (voir détails)');
   }
+  if(epciCsvBtn){
+    epciCsvBtn.addEventListener('click', ()=>{
+      const header = ["siren","siret","nom_complet","naf","libelle_naf","date_creation","etat","categorie","tranche_effectif","adresse","code_postal","commune","epci","lat","lon"];
+      exportCSV('entreprises_epci_243801024.csv', enterprises, header);
+    });
+  }
+
+  // Exports locaux
+  const expCsvParticipantsBtn = $('#expCsvParticipantsBtn');
+  if(expCsvParticipantsBtn) expCsvParticipantsBtn.addEventListener('click', exportParticipantsCSV);
+
+  const expCsvPoiBtn = $('#expCsvPoiBtn');
+  if(expCsvPoiBtn) expCsvPoiBtn.addEventListener('click', exportPoiCSV);
+
+  const expGeoParticipantsBtn = $('#expGeoParticipantsBtn');
+  if(expGeoParticipantsBtn) expGeoParticipantsBtn.addEventListener('click', exportParticipantsGeo);
+
+  const expGeoPoiBtn = $('#expGeoPoiBtn');
+  if(expGeoPoiBtn) expGeoPoiBtn.addEventListener('click', exportPoiGeo);
+
+  const expGeoPerimeterBtn = $('#expGeoPerimeterBtn');
+  if(expGeoPerimeterBtn) expGeoPerimeterBtn.addEventListener('click', exportPerimeterGeo);
+
+  // Impression (si bouton présent)
+  const printBtn = $('#printBtn');
+  if(printBtn){
+    const ensureTilesReady = async (timeout=2000)=>{
+      return new Promise(resolve=>{
+        const start=Date.now(); const tiles=[...document.querySelectorAll('.leaflet-tile')];
+        if(tiles.length===0){ resolve(); return; }
+        let remaining=tiles.length;
+        const done=()=>{ if(--remaining<=0 || (Date.now()-start)>timeout) resolve(); };
+        tiles.forEach(img=>{
+          if(img.complete && img.naturalWidth>0){ done(); }
+          else { img.addEventListener('load',done,{once:true}); img.addEventListener('error',done,{once:true}); }
+        });
+        setTimeout(resolve, timeout);
+      });
+    };
+    printBtn.addEventListener('click', async ()=>{
+      try{ map.invalidateSize(); }catch(_){}
+      await ensureTilesReady(2000);
+      window.print();
+    });
+    window.addEventListener('beforeprint', async ()=>{ try{ map.invalidateSize(); }catch(_){} });
+    window.addEventListener('afterprint', ()=>{ setTimeout(()=>{ try{ map.invalidateSize(); }catch(_){} }, 100); });
+  }
+
+  // ---------- Ready ----------
+  setText(statusEl,'Prêt. Cliquez sur la carte pour ajouter des participants. Cochez le type (Prod/Cons) puis ajustez D (km).');
+
+  // Si tu veux initialiser un producteur par défaut, décommente :
+  // addParticipant(45.073, 5.55, 'producer', 'Producteur — défaut');
 })();
