@@ -61,6 +61,15 @@
     /* Centre libre (tooltip) */
     .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 
+    /* Style GeoJSON Communes (NOUVEAU) */
+    .leaflet-pane .leaflet-geojson-layer path.commune-boundary{
+      stroke:#0f4f47; /* Dark Teal */
+      stroke-width:2;
+      fill:#0f4f47;
+      fill-opacity:0.1;
+      pointer-events:all;
+    }
+
     /* PRINT */
     .print-header{display:none}
     .print-legend{display:none}
@@ -185,7 +194,16 @@
         </div>
         <div class="small" style="margin-top:6px">POI : <span id="poiStats">0</span> — Dans D/2 : <span id="poiInRange">0</span></div>
       </fieldset>
-
+      
+      <fieldset>
+        <legend>Limites Administratives (Communes/EPCI)</legend>
+        <div class="small">Charger un fichier GeoJSON local (ex: communes-vercors-filtrees.geojson).</div>
+        <div class="row" style="margin-top:6px">
+          <button id="loadCommunesBtn" class="btn secondary">Charger Limites GeoJSON</button>
+          <label class="small"><input type="checkbox" id="toggleCommunes" disabled> Afficher limites</label>
+        </div>
+        <div class="small" style="margin-top:6px">Statut : <span id="communesStatus">Aucune donnée chargée.</span></div>
+      </fieldset>
       <fieldset>
         <legend>Exports périmètre & participants</legend>
         <div class="row">
@@ -301,6 +319,9 @@
       const participantLayer = L.layerGroup().addTo(map);
       const poiLayer = L.layerGroup().addTo(map);
       const poiSeen = new Set(); // anti-doublons
+      let communesLayer = null; // NOUVEAU: GeoJSON layer for administrative boundaries
+      const communesStatusEl = document.getElementById('communesStatus'); // NOUVEAU: Status element
+
 
       // UI helpers
       function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
@@ -626,6 +647,90 @@
       }
       document.getElementById('loadPoiIsere').addEventListener('click', loadPoiIsere);
       document.getElementById('togglePoi').addEventListener('change', (e)=>{ if(e.target.checked){ poiLayer.addTo(map); } else { map.removeLayer(poiLayer); } });
+
+      // NOUVEAU: Limites administratives (GeoJSON)
+      document.getElementById('loadCommunesBtn').addEventListener('click', loadCommunesGeojson);
+      document.getElementById('toggleCommunes').addEventListener('change', toggleCommunesDisplay);
+
+      function styleCommune(feature) {
+          return {
+              color: '#0f4f47', // Dark Teal
+              weight: 2,
+              opacity: 0.8,
+              fillColor: '#0f4f47',
+              fillOpacity: 0.1,
+              className: 'commune-boundary'
+          };
+      }
+
+      function onEachCommuneFeature(feature, layer) {
+          let popupContent = '<strong>Limite Administrative</strong>';
+          const props = feature.properties;
+          // Ces propriétés dépendent du fichier GeoJSON, les noms 'nom' et 'epci_nom' sont des hypothèses courantes.
+          if (props && props.nom) {
+              popupContent += `<br>Commune : ${esc(props.nom)}`;
+          }
+          if (props && props.epci_nom) {
+              popupContent += `<br>EPCI : ${esc(props.epci_nom)}`;
+          } else if (props && props.EPCI) { // Tentative pour une autre clé courante
+              popupContent += `<br>EPCI : ${esc(props.EPCI)}`;
+          }
+          layer.bindPopup(popupContent);
+      }
+      
+      async function loadCommunesGeojson(){
+          if (communesLayer) {
+              map.removeLayer(communesLayer);
+              communesLayer = null;
+          }
+          
+          const filename = 'communes-vercors-filtrees.geojson';
+          const btn = document.getElementById('loadCommunesBtn');
+          const toggle = document.getElementById('toggleCommunes');
+          const prev = btn.textContent;
+          btn.disabled = true;
+          toggle.disabled = true;
+          communesStatusEl.textContent = `Chargement de ${filename}...`;
+
+          try {
+              const response = await fetch(filename);
+              if (!response.ok) {
+                  throw new Error(`Erreur HTTP: ${response.status}`);
+              }
+              const data = await response.json();
+
+              communesLayer = L.geoJSON(data, {
+                  style: styleCommune,
+                  onEachFeature: onEachCommuneFeature
+              }).addTo(map);
+
+              toggle.checked = true;
+              toggle.disabled = false;
+              btn.textContent = 'Recharger Limites GeoJSON';
+              communesStatusEl.textContent = `${data.features.length} limite(s) chargée(s).`;
+              tSet(statusEl, `Limites administratives chargées (${data.features.length} zones).`);
+              map.fitBounds(communesLayer.getBounds().pad(0.1));
+
+          } catch (e) {
+              communesStatusEl.textContent = `Erreur de chargement: ${e.message}. Assurez-vous que le fichier ${filename} est présent dans le même dossier.`;
+              tSet(statusEl, `Erreur: Impossible de charger le GeoJSON des communes.`);
+          } finally {
+              btn.disabled = false;
+          }
+      }
+
+      function toggleCommunesDisplay(e) {
+          if (!communesLayer) return;
+
+          if (e.target.checked) {
+              map.addLayer(communesLayer);
+              tSet(statusEl, 'Affichage des limites administratives.');
+          } else {
+              map.removeLayer(communesLayer);
+              tSet(statusEl, 'Masquage des limites administratives.');
+          }
+      }
+      // FIN NOUVEAU
 
       // Exports
       function download(name, blob){ const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=name; a.click(); URL.revokeObjectURL(url); }
