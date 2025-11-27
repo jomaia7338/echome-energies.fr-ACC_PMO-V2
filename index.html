@@ -61,7 +61,7 @@
     /* Centre libre (tooltip) */
     .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
     
-    /* Style pour la zone ACC chargée */
+    /* Style pour la zone ACC chargée (Contour principal EPCI/Commune) */
     .leaflet-container .loaded-zone {
         stroke: #37C3AF !important; /* Couleur de la marque */
         color: #37C3AF !important;
@@ -70,6 +70,19 @@
         weight: 4 !important;
         opacity: 0.8 !important;
     }
+    
+    /* Style pour les communes internes chargées (dans EPCI) */
+    .leaflet-container .loaded-commune-inner {
+        stroke: rgba(55, 195, 175, 0.7) !important; /* Moins opaque, couleur de la marque */
+        color: rgba(55, 195, 175, 0.7) !important;
+        weight: 1.5 !important; /* Ligne plus fine */
+        opacity: 0.7 !important;
+        fill: none !important;
+        fillOpacity: 0 !important;
+        /* Ajout d'un tireté pour distinguer le contour */
+        stroke-dasharray: 3, 3 !important;
+    }
+
 
     /* PRINT */
     .print-header{display:none}
@@ -152,6 +165,7 @@
       <div class="item"><span class="dot poi"></span>POI incendie (SDIS/SDMIS/STIS/SLIS…)</div>
       <div class="item" style="border-left:3px solid #0064B4; border-bottom:1px dashed #969696; padding-left:4px">Limites admin. (EPCI/Comm.)</div>
       <div class="item" style="border-left:4px solid #37C3AF; border-bottom:4px solid #37C3AF; background:rgba(55,195,175,0.15); padding-left:4px">Zone ACC chargée</div>
+      <div class="item" style="border-left:2px dashed rgba(55,195,175,0.7); border-bottom:2px dashed rgba(55,195,175,0.7); padding-left:4px">Communes membres (dans EPCI)</div>
     </div>
   </div>
 
@@ -259,6 +273,17 @@
       const poiInRangeEl = document.getElementById('poiInRange');
       const mapEl = document.getElementById('map');
 
+      // Styles pour les contours de communes membres (dans EPCI chargé)
+      const INNER_COMMUNE_STYLE = {
+          color: 'rgba(55, 195, 175, 0.7)', 
+          weight: 1.5, 
+          opacity: 0.7, 
+          fillColor: 'transparent', 
+          fillOpacity: 0,
+          dashArray: '3, 3', 
+          className: 'loaded-commune-inner' 
+      };
+
       // Utils
       const eps = 1e-9; const toRad = d => d*Math.PI/180;
       const esc = s => String(s||'').replace(/[&<>\"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -348,7 +373,7 @@
         if (sisChecked() || ruralFlag) return 20;
         return currentDiameterRaw();
       }
-      function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.'; }
+      function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''} ` : 'Aucun point.'; }
       function setPoiStats(){ poiStatsEl.textContent = String(pois.length); }
 
       // Ruralité (expérimental) — si un producteur “par défaut” ou premier producteur dans une commune rurale, on force 20 km
@@ -631,38 +656,90 @@
               resultsEl.textContent = 'Erreur lors de la recherche de la zone.';
           }
       }
+
+      // 3. Nouvelle fonction pour charger les communes d'un EPCI
+      async function loadInnerCommunes(epciCode, epciName) {
+          const resultsEl = document.getElementById('adminResults');
+          const prevHtml = resultsEl.innerHTML;
+          resultsEl.innerHTML = prevHtml + '<br>Récupération des communes membres...';
+
+          try {
+              // 3.1: Récupérer la liste des communes de l'EPCI
+              const listUrl = `https://geo.api.gouv.fr/epcis/${epciCode}/communes?fields=nom,code`;
+              const listResponse = await fetch(listUrl);
+              if (!listResponse.ok) throw new Error('Erreur liste communes.');
+
+              const communesList = await listResponse.json();
+              if (communesList.length === 0) {
+                  resultsEl.innerHTML = prevHtml + '<br>Aucune commune membre trouvée.';
+                  return;
+              }
+
+              resultsEl.innerHTML = prevHtml + `<br>Chargement des contours de ${communesList.length} communes...`;
+              
+              // 3.2: Charger le GeoJSON pour chaque commune (en parallèle pour la vitesse)
+              let loadedCount = 0;
+              const communePromises = communesList.map(async (commune) => {
+                  try {
+                      // Note: L'API Geo utilise le code (INSEE) même pour les EPCI ici.
+                      const contourUrl = `https://geo.api.gouv.fr/communes/${commune.code}?format=geojson&geometry=contour`;
+                      const contourResponse = await fetch(contourUrl);
+                      if (!contourResponse.ok) throw new Error('Erreur contour commune.');
+                      
+                      const data = await contourResponse.json();
+                      const feature = data.features?.[0];
+
+                      if (feature) {
+                          L.geoJSON(feature, {
+                              style: INNER_COMMUNE_STYLE,
+                              onEachFeature: function(feature, layer) {
+                                  layer.bindTooltip(`Commune membre : ${esc(commune.nom)}`);
+                              }
+                          }).addTo(zoneAccLayer);
+                          loadedCount++;
+                      }
+                  } catch (err) {
+                      console.warn(`Erreur de chargement pour la commune ${commune.nom} (${commune.code}):`, err);
+                  }
+              });
+
+              await Promise.allSettled(communePromises);
+
+              resultsEl.innerHTML = `Zone <strong>${esc(epciName)}</strong> chargée. ${loadedCount} contours de communes affichés.`;
+
+          } catch (error) {
+              console.error('Erreur lors du chargement des communes internes :', error);
+              resultsEl.innerHTML = prevHtml + '<br>Échec du chargement des communes membres.';
+          }
+      }
       
-      // 2. Charger le GeoJSON et l'afficher
+      // 2. Charger le GeoJSON du contour principal et des communes si EPCI
       async function loadAdminBoundary(code, type, name) {
           clearLoadedZone(); // Efface l'ancienne zone
           const resultsEl = document.getElementById('adminResults');
           resultsEl.innerHTML = `Chargement de la géométrie de ${name}...`;
 
           try {
-              const geomType = type === 'communes' ? 'contour' : 'contour'; // L'API ne supporte pas 'epcis' direct, mais 'contour' pour communes
+              // --- 2.1 Chargement du contour principal (EPCI ou Commune) ---
+              const geomType = 'contour'; 
               let endpoint = `https://geo.api.gouv.fr/${type}/${code}`;
               let url = `${endpoint}?format=geojson&geometry=${geomType}`;
               
               const response = await fetch(url);
-              if (!response.ok) throw new Error('Erreur de récupération GeoJSON.');
+              if (!response.ok) throw new Error('Erreur de récupération GeoJSON du contour principal.');
 
               const data = await response.json();
-              if (!data || data.type !== 'FeatureCollection') {
-                  throw new Error('Format GeoJSON invalide ou vide.');
-              }
-              
-              // Leaflet ne gère pas toujours le FeatureCollection direct de l'API Geo, mais le Feature est dedans
               const feature = data.features?.[0] || data.features;
               if (!feature) {
                    resultsEl.textContent = `Géométrie non trouvée pour ${name}.`;
                    return;
               }
               
-              // Affichage du polygone
+              // Affichage du polygone principal (style loaded-zone)
               loadedZoneLayer = L.geoJSON(feature, {
                   style: {
                       color: '#37C3AF', 
-                      weight: 4, 
+                      weight: 4, // Épais pour le contour principal
                       opacity: 0.8, 
                       fillColor: '#37C3AF', 
                       fillOpacity: 0.15,
@@ -674,11 +751,17 @@
                   }
               }).addTo(zoneAccLayer);
               
-              currentAdminZone = { name, type, layer: loadedZoneLayer };
-              
               // Centrer la carte sur la zone
-              map.fitBounds(loadedZoneLayer.getBounds().pad(0.05));
+              const bounds = loadedZoneLayer.getBounds();
+              map.fitBounds(bounds.pad(0.05));
 
+              // --- 2.2 Chargement des communes internes si c'est un EPCI ---
+              if (type === 'epcis') {
+                  // Le code est le SIREN de l'EPCI dans le cas de l'API geo
+                  await loadInnerCommunes(code, name); 
+              }
+
+              currentAdminZone = { name, type, layer: loadedZoneLayer };
               resultsEl.innerHTML = `Zone <strong>${esc(name)}</strong> chargée et affichée.`;
 
           } catch (error) {
