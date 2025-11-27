@@ -60,6 +60,16 @@
 
     /* Centre libre (tooltip) */
     .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
+    
+    /* Style pour la zone ACC chargée */
+    .leaflet-container .loaded-zone {
+        stroke: #37C3AF !important; /* Couleur de la marque */
+        color: #37C3AF !important;
+        fillColor: #37C3AF !important;
+        fillOpacity: 0.15 !important;
+        weight: 4 !important;
+        opacity: 0.8 !important;
+    }
 
     /* PRINT */
     .print-header{display:none}
@@ -141,6 +151,7 @@
       <div class="item"><span class="dot cons"></span>Consommateur</div>
       <div class="item"><span class="dot poi"></span>POI incendie (SDIS/SDMIS/STIS/SLIS…)</div>
       <div class="item" style="border-left:3px solid #0064B4; border-bottom:1px dashed #969696; padding-left:4px">Limites admin. (EPCI/Comm.)</div>
+      <div class="item" style="border-left:4px solid #37C3AF; border-bottom:4px solid #37C3AF; background:rgba(55,195,175,0.15); padding-left:4px">Zone ACC chargée</div>
     </div>
   </div>
 
@@ -166,6 +177,22 @@
           <button id="exportJson" class="btn">Exporter fichier</button>
           <input id="importJson" type="file" accept="application/json">
         </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Charger une zone ACC (Commune / EPCI)</legend>
+        <div class="row">
+          <select id="adminType" aria-label="Type de limite">
+            <option value="communes">Commune</option>
+            <option value="epcis">EPCI</option>
+          </select>
+          <input id="adminQuery" type="text" placeholder="Nom ou code (ex: Grenoble)" style="flex:1" aria-label="Nom ou code de la zone">
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button id="searchAdminBtn" class="btn">Rechercher</button>
+          <button id="clearAdminBtn" class="btn secondary">Effacer la zone</button>
+        </div>
+        <div id="adminResults" class="small" aria-live="polite" style="margin-top:6px"></div>
       </fieldset>
 
       <fieldset>
@@ -302,6 +329,10 @@
       const participantLayer = L.layerGroup().addTo(map);
       const poiLayer = L.layerGroup().addTo(map);
       const poiSeen = new Set(); // anti-doublons
+      
+      // --- NOUVELLE COUCHE : Zone ACC Chargée ---
+      const zoneAccLayer = L.layerGroup().addTo(map);
+      let currentAdminZone = null; // {name, type, layer}
 
       // UI helpers
       function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
@@ -420,7 +451,7 @@
         if(!mec){ tSet(statusEl,'Centre libre non calculable.'); poiInRangeEl.textContent='0'; return; }
         const pass = mec.r <= R + eps;
 
-        vizCircle = L.circle([mec.center.lat,mec.center.lng],{ radius:R*1000,color:'#6D28D9',weight:2,fill:false,opacity:0.9,dashArray:'6 6' })
+        vizCircle = L.circle([mec.center.lat,mec.center.lng],{ radius:R*1000,color:'#6D28D9',weight:4,fill:false,opacity:1.0,dashArray:'6 6' })
           .addTo(map).bindTooltip('Centre libre (visualisation) — centre non défini',{className:'center-free-tip'});
 
         styleParticipants(mec.center, R);
@@ -461,64 +492,46 @@
         poiInRangeEl.textContent = String(cnt);
       }
 
-      // --- NOUVELLE COUCHE : Limites Administratives (EPCI / Communes) ---
+      // --- COUCHE: Limites Administratives de Référence (chargement du fichier GeoJSON) ---
       const limitesAdminLayer = L.layerGroup().addTo(map); 
       let geoJsonLayer = null; 
-
-      // Définition de la fonction de style conditionnelle (Leaflet)
+      
       function styleLimites(feature) {
-          // Vérifie si la carte est initialisée
           if (!map || !map.getZoom) return { weight: 0 }; 
-
           const zoom = map.getZoom();
-          // Assurez-vous que cette propriété est présente dans votre GeoJSON fusionné (COMMUNE ou EPCI)
-          // NOTE: On force 'COMMUNE' pour le fichier Vercors
           const type = feature.properties.type_limite || 'COMMUNE'; 
-          
-          // N'afficher les communes qu'à partir du zoom 10
           const zoomMinCommune = 10; 
 
           if (type === 'EPCI') {
-              // Style pour les limites d'EPCI : Dominant, contour épais
               return {
-                  color: 'rgba(0, 100, 180, 1.0)', // Bleu foncé
-                  weight: 3,
-                  opacity: 1,
+                  color: 'rgba(0, 100, 180, 1.0)', 
+                  weight: 3, opacity: 1,
                   fillColor: 'rgba(0, 100, 180, 0.05)', 
                   fillOpacity: 0.05,
-                  lineCap: 'round',
-                  lineJoin: 'round',
-                  zIndex: 400 
+                  lineCap: 'round', lineJoin: 'round', zIndex: 400 
               };
           }
 
           if (type === 'COMMUNE') {
               if (zoom >= zoomMinCommune) {
-                  // Style pour les limites de Communes : Discret, trait fin
                   return {
-                      color: 'rgba(150, 150, 150, 0.8)', // Gris discret
-                      weight: 1,
-                      opacity: 0.8,
-                      dashArray: '4, 4', // Ligne pointillée fine
-                      fillColor: 'transparent',
-                      fillOpacity: 0.0,
-                      zIndex: 300 
+                      color: 'rgba(150, 150, 150, 0.8)', 
+                      weight: 1, opacity: 0.8,
+                      dashArray: '4, 4', 
+                      fillColor: 'transparent', fillOpacity: 0.0, zIndex: 300 
                   };
               } else {
-                  // Invisible si zoom insuffisant
                   return { weight: 0, opacity: 0, fillOpacity: 0 };
               }
           }
           return { weight: 0 }; 
       }
 
-      // Fonction de chargement des limites
       async function loadLimites() {
           if(geoJsonLayer){ limitesAdminLayer.removeLayer(geoJsonLayer); geoJsonLayer = null; }
           
           try {
-              // !!! REMPLACER CETTE URL PAR LE CHEMIN VERS VOTRE FICHIER GeoJSON UNIQUE EPCI+COMMUNES !!!
-              // NOTE: Le fichier "communes-vercors-filtrees.geojson" est utilisé ici à titre de démonstration.
+              // URL à remplacer par votre GeoJSON fusionné (EPCI + Communes de l'Isère)
               const urlGeoJSON = 'communes-vercors-filtrees.geojson'; 
               
               const response = await fetch(urlGeoJSON);
@@ -526,13 +539,10 @@
               
               const data = await response.json();
               
-              // Préparation des données: assure que le champ 'type_limite' est présent
               data.features.forEach(f => {
                   if(!f.properties.type_limite) {
-                      // Par défaut, si non spécifié (comme dans votre fichier Vercors), c'est une COMMUNE
-                      f.properties.type_limite = 'COMMUNE'; 
+                      f.properties.type_limite = f.properties.NOM_COM ? 'COMMUNE' : 'ZONE'; 
                   }
-                  // S'assurer qu'il y a une propriété 'nom' pour le tooltip
                   if(!f.properties.nom) {
                       f.properties.nom = f.properties.NOM_COM || 'Zone Administrative'; 
                   }
@@ -543,14 +553,11 @@
                   onEachFeature: function(feature, layer) {
                       const name = feature.properties.nom;
                       const type = feature.properties.type_limite;
-                      layer.bindTooltip(`<strong>${esc(type)}</strong><br>${esc(name)}`, {
-                          sticky: true
-                      });
+                      layer.bindTooltip(`<strong>${esc(type)}</strong><br>${esc(name)}`, { sticky: true });
                   }
               }).addTo(limitesAdminLayer);
 
               tSet(statusEl, `Limites administratives chargées (${data.features.length} entités).`, 'ok');
-              // Ajuster la vue si le fichier chargé est petit (comme le Vercors)
               map.fitBounds(geoJsonLayer.getBounds().pad(0.1));
 
           } catch (error) {
@@ -558,14 +565,141 @@
               tSet(statusEl, 'Erreur : Limites admin. non chargées.', 'ko');
           }
       }
+      map.on('zoomend', function() { if (geoJsonLayer) geoJsonLayer.setStyle(styleLimites); });
 
-      // Rechargement des styles lors du changement de zoom (pour le style conditionnel)
-      map.on('zoomend', function() {
-          if (geoJsonLayer) {
-              geoJsonLayer.setStyle(styleLimites);
+      // --- NOUVELLE FONCTIONNALITÉ : Chargement de zone EPCI/Commune par API ---
+      let loadedZoneLayer = null;
+
+      function clearLoadedZone() {
+          if (loadedZoneLayer) {
+              zoneAccLayer.removeLayer(loadedZoneLayer);
+              loadedZoneLayer = null;
+              currentAdminZone = null;
+              tSet(document.getElementById('adminResults'), 'Zone chargée effacée.', '');
+          }
+      }
+
+      // 1. Chercher le code INSEE/SIREN par nom
+      async function searchAdminBoundary(query, type) {
+          const resultsEl = document.getElementById('adminResults');
+          resultsEl.innerHTML = 'Recherche…';
+
+          try {
+              let url = `https://geo.api.gouv.fr/${type}?nom=${encodeURIComponent(query)}&fields=nom,code,siren,codeDepartement,type`;
+              // Boost population pour les grandes villes/EPCI
+              if (type === 'communes' || type === 'epcis') url += '&boost=population&limit=5';
+              
+              const response = await fetch(url);
+              if (!response.ok) throw new Error('Erreur API Geo.');
+
+              const data = await response.json();
+
+              if (!data || data.length === 0) {
+                  resultsEl.textContent = `Aucun(e) ${type === 'communes' ? 'commune' : 'EPCI'} trouvé(e) pour "${query}".`;
+                  return;
+              }
+
+              // Afficher les résultats sous forme de liste cliquable
+              const ul = document.createElement('ul');
+              data.forEach(item => {
+                  const li = document.createElement('li');
+                  const a = document.createElement('a');
+                  a.href = '#';
+                  const name = item.nom || item.intitule;
+                  const code = item.code || item.siren;
+                  a.textContent = `${name} (${code})` + (item.codeDepartement ? ` — Dept ${item.codeDepartement}` : '');
+                  
+                  // Stocker les infos pour le chargement du GeoJSON
+                  a.dataset.code = code;
+                  a.dataset.name = name;
+                  a.dataset.type = type;
+
+                  a.onclick = (e) => {
+                      e.preventDefault();
+                      loadAdminBoundary(a.dataset.code, a.dataset.type, a.dataset.name);
+                      resultsEl.innerHTML = `Chargement de ${a.textContent}...`;
+                  };
+                  li.appendChild(a);
+                  ul.appendChild(li);
+              });
+
+              resultsEl.innerHTML = '';
+              resultsEl.appendChild(ul);
+
+          } catch (error) {
+              console.error('Erreur de recherche administrative :', error);
+              resultsEl.textContent = 'Erreur lors de la recherche de la zone.';
+          }
+      }
+      
+      // 2. Charger le GeoJSON et l'afficher
+      async function loadAdminBoundary(code, type, name) {
+          clearLoadedZone(); // Efface l'ancienne zone
+          const resultsEl = document.getElementById('adminResults');
+          resultsEl.innerHTML = `Chargement de la géométrie de ${name}...`;
+
+          try {
+              const geomType = type === 'communes' ? 'contour' : 'contour'; // L'API ne supporte pas 'epcis' direct, mais 'contour' pour communes
+              let endpoint = `https://geo.api.gouv.fr/${type}/${code}`;
+              let url = `${endpoint}?format=geojson&geometry=${geomType}`;
+              
+              const response = await fetch(url);
+              if (!response.ok) throw new Error('Erreur de récupération GeoJSON.');
+
+              const data = await response.json();
+              if (!data || data.type !== 'FeatureCollection') {
+                  throw new Error('Format GeoJSON invalide ou vide.');
+              }
+              
+              // Leaflet ne gère pas toujours le FeatureCollection direct de l'API Geo, mais le Feature est dedans
+              const feature = data.features?.[0] || data.features;
+              if (!feature) {
+                   resultsEl.textContent = `Géométrie non trouvée pour ${name}.`;
+                   return;
+              }
+              
+              // Affichage du polygone
+              loadedZoneLayer = L.geoJSON(feature, {
+                  style: {
+                      color: '#37C3AF', 
+                      weight: 4, 
+                      opacity: 0.8, 
+                      fillColor: '#37C3AF', 
+                      fillOpacity: 0.15,
+                      className: 'loaded-zone'
+                  },
+                  onEachFeature: function(feature, layer) {
+                      layer.bindPopup(`<strong>Zone ACC : ${esc(name)}</strong><br>${type === 'communes' ? 'Commune' : 'EPCI'}<br>Code : ${code}`);
+                      layer.bindTooltip(`${esc(name)} (Zone ACC)`, { permanent: true, direction: 'center', className: 'loaded-zone-tooltip' });
+                  }
+              }).addTo(zoneAccLayer);
+              
+              currentAdminZone = { name, type, layer: loadedZoneLayer };
+              
+              // Centrer la carte sur la zone
+              map.fitBounds(loadedZoneLayer.getBounds().pad(0.05));
+
+              resultsEl.innerHTML = `Zone <strong>${esc(name)}</strong> chargée et affichée.`;
+
+          } catch (error) {
+              console.error('Erreur de chargement GeoJSON :', error);
+              resultsEl.textContent = 'Échec du chargement de la géométrie.';
+          }
+      }
+      
+      // Gestion des événements du nouveau Fieldset
+      document.getElementById('searchAdminBtn').addEventListener('click', () => {
+          const type = document.getElementById('adminType').value;
+          const query = document.getElementById('adminQuery').value.trim();
+          if (query) {
+              searchAdminBoundary(query, type);
+          } else {
+              document.getElementById('adminResults').textContent = 'Veuillez entrer un nom ou un code.';
           }
       });
-      // --- FIN NOUVELLE COUCHE ---
+
+      document.getElementById('clearAdminBtn').addEventListener('click', clearLoadedZone);
+      // --- FIN NOUVELLE FONCTIONNALITÉ ---
 
       // UI top bar
       document.getElementById('limitSel').addEventListener('change', (e)=>{ const v=e.target.value; const custom=document.getElementById('customKm'); custom.style.display=(v==='custom')?'inline-block':'none'; refreshACC(); });
@@ -825,7 +959,7 @@
 
       // Lancer
       try{ initDefaultProducer(); }catch(_){ }
-      loadLimites(); // Chargement des limites administratives
+      loadLimites(); // Chargement des limites administratives (fichier GeoJSON local)
       layout();
       tSet(statusEl,'Prêt.');
       window.addEventListener('error', e=>{ tSet(statusEl,'Erreur JS : '+e.message); });
