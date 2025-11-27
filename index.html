@@ -61,15 +61,6 @@
     /* Centre libre (tooltip) */
     .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
 
-    /* Style GeoJSON Communes (INTENSIFIÉ) */
-    .leaflet-pane .leaflet-geojson-layer path.commune-boundary{
-      stroke:#0f4f47; /* Dark Teal */
-      stroke-width:2;
-      fill:#0f4f47;
-      fill-opacity:0.3; /* Augmenté de 0.1 à 0.3 */
-      pointer-events:all;
-    }
-
     /* PRINT */
     .print-header{display:none}
     .print-legend{display:none}
@@ -149,7 +140,7 @@
       <div class="item"><span class="dot prod"></span>Producteur</div>
       <div class="item"><span class="dot cons"></span>Consommateur</div>
       <div class="item"><span class="dot poi"></span>POI incendie (SDIS/SDMIS/STIS/SLIS…)</div>
-    </div>
+      </div>
   </div>
 
   <aside id="drawer" aria-hidden="true" aria-label="Options avancées">
@@ -196,13 +187,16 @@
       </fieldset>
       
       <fieldset>
-        <legend>Limites Administratives (Communes/EPCI)</legend>
-        <div class="small">Charger un fichier GeoJSON local (ex: communes-vercors-filtrees.geojson).</div>
+        <legend>Limites géographiques (EPCI / Communes)</legend>
+        <div class="small">Chargez un fichier GeoJSON pour visualiser des limites (EPCI, communes, etc.). La propriété 'nom' ou 'name' sera utilisée pour l'affichage.</div>
         <div class="row" style="margin-top:6px">
-          <button id="loadCommunesBtn" class="btn secondary">Charger Limites GeoJSON</button>
-          <label class="small"><input type="checkbox" id="toggleCommunes" disabled> Afficher limites</label>
+          <button id="loadVercorsLimits" class="btn">Charger Limites Vercors</button>
+          <button id="clearLimitsBtn" class="btn secondary">Effacer</button>
         </div>
-        <div class="small" style="margin-top:6px">Statut : <span id="communesStatus">Aucune donnée chargée.</span></div>
+        <div class="row" style="margin-top:6px">
+          <input id="importLimitsJson" type="file" accept="application/geo+json,application/json" style="flex:1">
+        </div>
+        <div class="small" style="margin-top:6px">Statut : <span id="limitsStatus">Aucune limite chargée.</span></div>
       </fieldset>
       <fieldset>
         <legend>Exports périmètre & participants</legend>
@@ -224,7 +218,7 @@
 
       <fieldset>
         <legend>Producteur par défaut</legend>
-        <div class="small">Adresse : <em>1159 Rue de la Galandrine, 38210 Saint-Quentin-sur-Isère</em></div>
+        <div class="small">Adresse : <em>210 Les Espinasses, 38250 Villard-de-Lans</em></div>
         <div style="margin-top:6px"><button id="resetDefaultBtn" class="btn secondary">Réinitialiser le défaut</button></div>
       </fieldset>
 
@@ -266,7 +260,7 @@
       function unprojectLocal(lat0,lon0,x,y){ return {lat:lat0 + y/111.32, lng: lon0 + x/(111.32*Math.cos(lat0*Math.PI/180))}; }
       function dist2(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
       function circleBy2(a,b){ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,r:Math.sqrt(dist2(a,b))/2}; }
-      function circleBy3(a,b,c){ const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y; const E=A*(a.x+b.x)+B*(a.y+b.y); const F=C*(a.x+c.x)+D*(a.y+c.y); const G=2*(A*(c.y-b.y)-B*(c.x-a.x));
+      function circleBy3(a,b,c){ const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y; const E=A*(a.x+b.x)+B*(a.y+b.y); const F=C*(a.x+c.x)+D*(a.y+c.y); const G=2*(A*(c.y-b.y)-B*(c.x-b.x));
         if(Math.abs(G)<1e-12) return null; const x=(D*E-B*F)/G, y=(A*F-C*E)/G, r=Math.hypot(x-a.x,y-a.y); return {x,y,r}; }
       function inCircle(c,p){ return Math.hypot(c.x-p.x,c.y-p.y) <= c.r + 1e-9; }
       function minimalEnclosingCircle(pointsLL){
@@ -319,9 +313,6 @@
       const participantLayer = L.layerGroup().addTo(map);
       const poiLayer = L.layerGroup().addTo(map);
       const poiSeen = new Set(); // anti-doublons
-      let communesLayer = null; // NOUVEAU: GeoJSON layer for administrative boundaries
-      const communesStatusEl = document.getElementById('communesStatus'); // NOUVEAU: Status element
-
 
       // UI helpers
       function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
@@ -337,7 +328,7 @@
         if (sisChecked() || ruralFlag) return 20;
         return currentDiameterRaw();
       }
-      function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}` : 'Aucun point.'; }
+      function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.'; }
       function setPoiStats(){ poiStatsEl.textContent = String(pois.length); }
 
       // Ruralité (expérimental) — si un producteur “par défaut” ou premier producteur dans une commune rurale, on force 20 km
@@ -518,7 +509,7 @@
           customKm: document.getElementById('customKm').value,
           sis: sisChecked(), auto20: auto20Checked()
         },
-        participants: participants.map(p=>({name:p.name, lat:p.lat, lng:p.lng, type:p.type, flags:p.flags||{} }))
+        participants: participants.map(p=>({name:p.name, lat:p.lat, lng:p.lng, type:p.type, flags:p.flags||{}}))
       }; }
       function applyState(st){
         participants.slice().forEach(p=> removeParticipant(p.id));
@@ -545,11 +536,7 @@
         const name=(document.getElementById('projName').value||'Projet 1').trim()||'Projet 1';
         const D=computeAllowedDiameter();
         const n=participants.length, np=participants.filter(p=>p.type==='producer').length, nc=participants.filter(p=>p.type==='consumer').length;
-        
-        // Ajout des coordonnées d'Echome Énergies à l'export PDF
-        const contactLine = ' | Tél: 04 76 37 34 62 | E-mail: contact@echome-energies.fr';
-
-        document.getElementById('printMeta').textContent = `${name} — D=${D} km — Points: ${n} (Prod ${np}, Cons ${nc}) ${contactLine} — ${fmtDate(new Date())}`;
+        document.getElementById('printMeta').textContent = `${name} — D=${D} km — Points: ${n} (Prod ${np}, Cons ${nc}) — ${fmtDate(new Date())}`;
       }
       async function ensureTilesReady(timeout=2000){
         return new Promise(resolve=>{
@@ -648,93 +635,91 @@
       document.getElementById('loadPoiIsere').addEventListener('click', loadPoiIsere);
       document.getElementById('togglePoi').addEventListener('change', (e)=>{ if(e.target.checked){ poiLayer.addTo(map); } else { map.removeLayer(poiLayer); } });
 
-      // NOUVEAU: Limites administratives (GeoJSON)
-      document.getElementById('loadCommunesBtn').addEventListener('click', loadCommunesGeojson);
-      document.getElementById('toggleCommunes').addEventListener('change', toggleCommunesDisplay);
+      // NOUVEAU: GeoJSON Limits (EPCI / Communes)
+      let limitsLayer = null;
+      const limitsFile = 'communes-vercors-filtrees.geojson';
 
-      function styleCommune(feature) {
-          return {
-              color: '#0f4f47', // Dark Teal
+      function clearLimits(){
+        if(limitsLayer){ map.removeLayer(limitsLayer); limitsLayer=null; }
+        document.getElementById('limitsStatus').textContent = 'Aucune limite chargée.';
+      }
+
+      async function loadGeoJsonLimits(data, name, propertiesKey='nom'){
+        clearLimits();
+        document.getElementById('limitsStatus').textContent = `Chargement de ${name}…`;
+
+        try {
+          if (data.type !== 'FeatureCollection') throw new Error('Format GeoJSON invalide (FeatureCollection attendu).');
+
+          limitsLayer = L.geoJSON(data, {
+            style: (feature) => ({
+              color: '#34D399', // Vert
               weight: 2,
               opacity: 0.8,
-              fillColor: '#0f4f47',
-              fillOpacity: 0.3, /* Intensité augmentée pour l'impact */
-              className: 'commune-boundary'
-          };
-      }
-
-      function onEachCommuneFeature(feature, layer) {
-          let popupContent = '<strong>Limite Administrative</strong>';
-          const props = feature.properties;
-          // Ces propriétés dépendent du fichier GeoJSON, les noms 'nom' et 'epci_nom' sont des hypothèses courantes.
-          if (props && props.nom) {
-              popupContent += `<br>Commune : ${esc(props.nom)}`;
-          }
-          if (props && props.epci_nom) {
-              popupContent += `<br>EPCI : ${esc(props.epci_nom)}`;
-          } else if (props && props.EPCI) { // Tentative pour une autre clé courante
-              popupContent += `<br>EPCI : ${esc(props.EPCI)}`;
-          }
-          layer.bindPopup(popupContent);
-      }
-      
-      async function loadCommunesGeojson(){
-          if (communesLayer) {
-              map.removeLayer(communesLayer);
-              communesLayer = null;
-          }
-          
-          const filename = 'communes-vercors-filtrees.geojson';
-          const btn = document.getElementById('loadCommunesBtn');
-          const toggle = document.getElementById('toggleCommunes');
-          const prev = btn.textContent;
-          btn.disabled = true;
-          toggle.disabled = true;
-          communesStatusEl.textContent = `Chargement de ${filename}...`;
-
-          try {
-              const response = await fetch(filename);
-              if (!response.ok) {
-                  throw new Error(`Erreur HTTP: ${response.status}`);
+              fillColor: '#34D399',
+              fillOpacity: 0.1,
+              dashArray: '3 3'
+            }),
+            onEachFeature: (feature, layer) => {
+              if (feature.properties) {
+                // Tente d'utiliser 'nom', 'name' ou 'NAME' pour l'étiquette
+                const label = feature.properties[propertiesKey] || feature.properties.name || feature.properties.NAME || 'Zone inconnue';
+                layer.bindTooltip(label, { permanent: false, direction: 'center' });
+                layer.on({
+                  mouseover: (e) => { e.target.setStyle({ fillColor: '#37C3AF', fillOpacity: 0.3 }); },
+                  mouseout: (e) => { limitsLayer.resetStyle(e.target); },
+                  click: (e) => {
+                    // Zoom sur la zone cliquée
+                    const bounds = e.target.getBounds();
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                    tSet(statusEl, `Zone sélectionnée : ${label} (${name}). Zoom effectué.`);
+                  }
+                });
               }
-              const data = await response.json(); // C'est ici que l'erreur 'Unexpected token' se produit
-              
-              if (data.features.length === 0) {
-                  communesStatusEl.textContent = `Fichier GeoJSON chargé, mais aucune entité trouvée.`;
-                  throw new Error("Aucune entité GeoJSON trouvée dans le fichier.");
-              }
+            }
+          }).addTo(map);
 
-              communesLayer = L.geoJSON(data, {
-                  style: styleCommune,
-                  onEachFeature: onEachCommuneFeature
-              }).addTo(map);
+          map.fitBounds(limitsLayer.getBounds().pad(0.1));
+          document.getElementById('limitsStatus').textContent = `${data.features.length} limites (${name}) chargées. Clic pour zoomer.`;
+          tSet(statusEl, `Limites ${name} chargées avec succès.`);
 
-              toggle.checked = true;
-              toggle.disabled = false;
-              btn.textContent = 'Recharger Limites GeoJSON';
-              communesStatusEl.textContent = `${data.features.length} limite(s) chargée(s).`;
-              tSet(statusEl, `Limites administratives chargées (${data.features.length} zones).`);
-              map.fitBounds(communesLayer.getBounds().pad(0.1));
-
-          } catch (e) {
-              communesStatusEl.textContent = `Erreur de chargement: ${e.message}. Assurez-vous que le fichier ${filename} contient bien des données GeoJSON et non un script.`;
-              tSet(statusEl, `Erreur: Impossible de charger le GeoJSON des communes.`);
-          } finally {
-              btn.disabled = false;
-          }
+        } catch (error) {
+          document.getElementById('limitsStatus').textContent = `Erreur de chargement des limites ${name}: ${error.message}`;
+          tSet(statusEl, `Erreur de chargement des limites ${name}.`);
+        }
       }
 
-      function toggleCommunesDisplay(e) {
-          if (!communesLayer) return;
+      // 1. Load Vercors Limits from file
+      const loadVercorsLimitsFromFile = async () => {
+        document.getElementById('limitsStatus').textContent = `Tentative de chargement de ${limitsFile}…`;
+        try {
+          const r = await fetch(limitsFile);
+          if (!r.ok) throw new Error(`Fichier introuvable ou HTTP ${r.status}`);
+          const data = await r.json();
+          // Le fichier Vercors utilise 'nom' comme clé de propriété pour le nom de la commune
+          loadGeoJsonLimits(data, 'Communes Vercors', 'nom'); 
+        } catch (e) {
+          document.getElementById('limitsStatus').textContent = `Erreur de chargement du fichier ${limitsFile} : ${e.message}`;
+          tSet(statusEl, `Erreur de chargement : ${limitsFile} non trouvé ou invalide.`);
+        }
+      };
 
-          if (e.target.checked) {
-              map.addLayer(communesLayer);
-              tSet(statusEl, 'Affichage des limites administratives.');
-          } else {
-              map.removeLayer(communesLayer);
-              tSet(statusEl, 'Masquage des limites administratives.');
-          }
-      }
+      // 2. Load Limits from user file input
+      document.getElementById('importLimitsJson').addEventListener('change', async (e)=>{
+        const f=e.target.files[0]; if(!f) return;
+        try{
+          const txt=await f.text();
+          const data=JSON.parse(txt);
+          // Utilise le nom du fichier comme nom de la couche
+          loadGeoJsonLimits(data, f.name.replace(/\.geojson|\.json/i,''), 'nom');
+          e.target.value = ''; // Réinitialise l'input file pour permettre un rechargement
+        }catch(e){
+          document.getElementById('limitsStatus').textContent = `Fichier GeoJSON utilisateur invalide : ${e.message}`;
+        }
+      });
+      // 3. Button listeners
+      document.getElementById('loadVercorsLimits').addEventListener('click', loadVercorsLimitsFromFile);
+      document.getElementById('clearLimitsBtn').addEventListener('click', clearLimits);
       // FIN NOUVEAU
 
       // Exports
@@ -789,9 +774,8 @@
       };
 
       // Producteur par défaut
-      // Adresse Echome Energies mémorisée
-      const DEFAULT_ADDR='1159 Rue de la Galandrine, 38210 Saint-Quentin-sur-Isère, France';
-      const DEFAULT_FALLBACK={lat:45.247, lng:5.568}; // Coordonnées approximatives Saint-Quentin-sur-Isère
+      const DEFAULT_ADDR='210 Les Espinasses, 38250 Villard-de-Lans, France';
+      const DEFAULT_FALLBACK={lat:45.073, lng:5.55};
       async function geocodeDefault(addr){
         try{ const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(addr)+'&lang=fr&limit=1'); if(r.ok){ const j=await r.json(); const f=j.features?.[0]; if(f) return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0]}; } }catch(_){}
         try{ const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(addr)); if(r.ok){ const j=await r.json(); const f=j[0]; if(f) return {lat:+f.lat, lng:+f.lon}; } }catch(_){}
@@ -819,6 +803,17 @@
         });
         tSet(statusEl,`Import participants : ${ok} ajouté(s), ${ko} rejeté(s).`);
       };
+
+      // Impression : attendre tuiles
+      async function ensureTilesReady(timeout=2000){
+        return new Promise(resolve=>{
+          const start=Date.now(); const tiles=[...document.querySelectorAll('.leaflet-tile')];
+          if(tiles.length===0){ resolve(); return; }
+          let remaining=tiles.length; const done=()=>{ if(--remaining<=0 || (Date.now()-start)>timeout) resolve(); };
+          tiles.forEach(img=>{ if(img.complete && img.naturalWidth>0){ done(); } else { img.addEventListener('load',done,{once:true}); img.addEventListener('error',done,{once:true}); } });
+          setTimeout(resolve, timeout);
+        });
+      }
 
       // Lancer
       try{ initDefaultProducer(); }catch(_){ }
