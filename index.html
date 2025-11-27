@@ -62,12 +62,13 @@
     .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
     
     /* Style pour la zone ACC chargée (Contour principal EPCI/Commune) */
+    /* Les valeurs de 'weight' sont maintenant définies en JS pour le contrôle dynamique */
     .leaflet-container .loaded-zone {
         stroke: #37C3AF !important; /* Couleur de la marque */
         color: #37C3AF !important;
         fillColor: #37C3AF !important;
         fillOpacity: 0.15 !important;
-        weight: 4 !important;
+        /* weight: 6 !important; <-- Défini par JS */
         opacity: 0.8 !important;
     }
     
@@ -75,7 +76,7 @@
     .leaflet-container .loaded-commune-inner {
         stroke: rgba(55, 195, 175, 0.7) !important; /* Moins opaque, couleur de la marque */
         color: rgba(55, 195, 175, 0.7) !important;
-        weight: 1.5 !important; /* Ligne plus fine */
+        /* weight: 3 !important; <-- Défini par JS */
         opacity: 0.7 !important;
         fill: none !important;
         fillOpacity: 0 !important;
@@ -195,6 +196,10 @@
 
       <fieldset>
         <legend>Charger une zone ACC (Commune / EPCI)</legend>
+        <div class="row" style="margin-bottom:6px">
+          <label class="small">Épaisseur du trait (Zone chargée) :</label>
+          <input id="adminWeightInput" type="number" min="1" max="10" value="6" step="1" style="width:60px" aria-label="Épaisseur du trait de la zone chargée">
+        </div>
         <div class="row">
           <select id="adminType" aria-label="Type de limite">
             <option value="communes">Commune</option>
@@ -274,9 +279,10 @@
       const mapEl = document.getElementById('map');
 
       // Styles pour les contours de communes membres (dans EPCI chargé)
+      // L'épaisseur (weight) sera définie dynamiquement par JS
       const INNER_COMMUNE_STYLE = {
           color: 'rgba(55, 195, 175, 0.7)', 
-          weight: 1.5, 
+          weight: 3, // Valeur par défaut si non dynamique
           opacity: 0.7, 
           fillColor: 'transparent', 
           fillOpacity: 0,
@@ -355,9 +361,10 @@
       const poiLayer = L.layerGroup().addTo(map);
       const poiSeen = new Set(); // anti-doublons
       
-      // --- NOUVELLE COUCHE : Zone ACC Chargée ---
+      // --- COUCHE: Zone ACC Chargée et Limites Admin Chargées par API ---
       const zoneAccLayer = L.layerGroup().addTo(map);
       let currentAdminZone = null; // {name, type, layer}
+      let loadedZoneLayer = null; // Référence au L.GeoJSON du contour principal
 
       // UI helpers
       function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
@@ -372,6 +379,11 @@
         // SIS => 20 ; Ruralité (expérimental) => 20 ; sinon valeur choisie
         if (sisChecked() || ruralFlag) return 20;
         return currentDiameterRaw();
+      }
+      function getCurrentAdminWeight(){
+          const v = parseFloat(document.getElementById('adminWeightInput').value);
+          // Valeur entre 1 et 10, défaut 6 (pour une bonne visibilité)
+          return (isNaN(v) || v < 1 || v > 10) ? 6 : v; 
       }
       function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''} ` : 'Aucun point.'; }
       function setPoiStats(){ poiStatsEl.textContent = String(pois.length); }
@@ -530,7 +542,8 @@
           if (type === 'EPCI') {
               return {
                   color: 'rgba(0, 100, 180, 1.0)', 
-                  weight: 3, opacity: 1,
+                  weight: 4, // Épaisseur augmentée (était 3)
+                  opacity: 1,
                   fillColor: 'rgba(0, 100, 180, 0.05)', 
                   fillOpacity: 0.05,
                   lineCap: 'round', lineJoin: 'round', zIndex: 400 
@@ -541,7 +554,8 @@
               if (zoom >= zoomMinCommune) {
                   return {
                       color: 'rgba(150, 150, 150, 0.8)', 
-                      weight: 1, opacity: 0.8,
+                      weight: 1.5, // Épaisseur augmentée (était 1)
+                      opacity: 0.8,
                       dashArray: '4, 4', 
                       fillColor: 'transparent', fillOpacity: 0.0, zIndex: 300 
                   };
@@ -593,11 +607,10 @@
       map.on('zoomend', function() { if (geoJsonLayer) geoJsonLayer.setStyle(styleLimites); });
 
       // --- NOUVELLE FONCTIONNALITÉ : Chargement de zone EPCI/Commune par API ---
-      let loadedZoneLayer = null;
-
+      
       function clearLoadedZone() {
-          if (loadedZoneLayer) {
-              zoneAccLayer.removeLayer(loadedZoneLayer);
+          if (zoneAccLayer) {
+              zoneAccLayer.clearLayers(); // Efface toutes les couches : contour principal + communes internes
               loadedZoneLayer = null;
               currentAdminZone = null;
               tSet(document.getElementById('adminResults'), 'Zone chargée effacée.', '');
@@ -658,7 +671,7 @@
       }
 
       // 3. Nouvelle fonction pour charger les communes d'un EPCI
-      async function loadInnerCommunes(epciCode, epciName) {
+      async function loadInnerCommunes(epciCode, epciName, mainWeight) {
           const resultsEl = document.getElementById('adminResults');
           const prevHtml = resultsEl.innerHTML;
           resultsEl.innerHTML = prevHtml + '<br>Récupération des communes membres...';
@@ -677,6 +690,13 @@
 
               resultsEl.innerHTML = prevHtml + `<br>Chargement des contours de ${communesList.length} communes...`;
               
+              // Calcule l'épaisseur pour les communes membres (moitié de l'épaisseur principale, min 1)
+              const innerWeight = Math.max(1, Math.round(mainWeight * 0.5));
+              const dynamicInnerStyle = {
+                  ...INNER_COMMUNE_STYLE,
+                  weight: innerWeight, 
+              };
+              
               // 3.2: Charger le GeoJSON pour chaque commune (en parallèle pour la vitesse)
               let loadedCount = 0;
               const communePromises = communesList.map(async (commune) => {
@@ -690,8 +710,9 @@
                       const feature = data.features?.[0];
 
                       if (feature) {
+                          // Note: L.geoJSON peut prendre un style par défaut, qui sera stocké dans les options de la couche
                           L.geoJSON(feature, {
-                              style: INNER_COMMUNE_STYLE,
+                              style: dynamicInnerStyle,
                               onEachFeature: function(feature, layer) {
                                   layer.bindTooltip(`Commune membre : ${esc(commune.nom)}`);
                               }
@@ -735,15 +756,18 @@
                    return;
               }
               
+              // Récupère l'épaisseur choisie par l'utilisateur
+              const mainWeight = getCurrentAdminWeight(); 
+
               // Affichage du polygone principal (style loaded-zone)
               loadedZoneLayer = L.geoJSON(feature, {
                   style: {
                       color: '#37C3AF', 
-                      weight: 4, // Épais pour le contour principal
+                      weight: mainWeight, // Utilisation de l'épaisseur dynamique
                       opacity: 0.8, 
                       fillColor: '#37C3AF', 
                       fillOpacity: 0.15,
-                      className: 'loaded-zone'
+                      className: 'loaded-zone' // IMPORTANT pour le style CSS et la mise à jour dynamique
                   },
                   onEachFeature: function(feature, layer) {
                       layer.bindPopup(`<strong>Zone ACC : ${esc(name)}</strong><br>${type === 'communes' ? 'Commune' : 'EPCI'}<br>Code : ${code}`);
@@ -758,16 +782,38 @@
               // --- 2.2 Chargement des communes internes si c'est un EPCI ---
               if (type === 'epcis') {
                   // Le code est le SIREN de l'EPCI dans le cas de l'API geo
-                  await loadInnerCommunes(code, name); 
+                  await loadInnerCommunes(code, name, mainWeight); // Passage de l'épaisseur
               }
 
-              currentAdminZone = { name, type, layer: loadedZoneLayer };
+              currentAdminZone = { name, type, code }; // Simplification de l'objet
               resultsEl.innerHTML = `Zone <strong>${esc(name)}</strong> chargée et affichée.`;
 
           } catch (error) {
               console.error('Erreur de chargement GeoJSON :', error);
               resultsEl.textContent = 'Échec du chargement de la géométrie.';
           }
+      }
+
+      // Fonction pour mettre à jour le style de la zone chargée (et des communes internes)
+      function refreshAdminZoneStyle() {
+          if (!zoneAccLayer) return;
+
+          const mainWeight = getCurrentAdminWeight();
+          const innerWeight = Math.max(1, Math.round(mainWeight * 0.5));
+
+          // Parcourt toutes les couches ajoutées à la zone ACC
+          zoneAccLayer.eachLayer(layer => {
+              // Récupère la classe définie lors de la création de la couche (stockée dans layer.options)
+              const className = layer.options.className;
+              
+              if (className === 'loaded-zone') {
+                  // Contour principal
+                  layer.setStyle({ weight: mainWeight });
+              } else if (className === 'loaded-commune-inner') {
+                  // Contours des communes membres
+                  layer.setStyle({ weight: innerWeight });
+              }
+          });
       }
       
       // Gestion des événements du nouveau Fieldset
@@ -782,6 +828,10 @@
       });
 
       document.getElementById('clearAdminBtn').addEventListener('click', clearLoadedZone);
+
+      // Listener pour le nouveau champ d'épaisseur : met à jour le style en temps réel
+      document.getElementById('adminWeightInput').addEventListener('input', refreshAdminZoneStyle);
+
       // --- FIN NOUVELLE FONCTIONNALITÉ ---
 
       // UI top bar
