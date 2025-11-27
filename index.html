@@ -60,30 +60,6 @@
 
     /* Centre libre (tooltip) */
     .center-free-tip{background:#111827;color:#fff;padding:2px 6px;border-radius:6px;font-size:11px;box-shadow:0 2px 8px rgba(0,0,0,.2)}
-    
-    /* Style pour la zone ACC chargée (Contour principal EPCI/Commune) */
-    /* Les valeurs de 'weight' sont maintenant définies en JS pour le contrôle dynamique */
-    .leaflet-container .loaded-zone {
-        stroke: #37C3AF !important; /* Couleur de la marque */
-        color: #37C3AF !important;
-        fillColor: #37C3AF !important;
-        fillOpacity: 0.15 !important;
-        /* weight: 6 !important; <-- Défini par JS */
-        opacity: 0.8 !important;
-    }
-    
-    /* Style pour les communes internes chargées (dans EPCI) */
-    .leaflet-container .loaded-commune-inner {
-        stroke: rgba(55, 195, 175, 0.7) !important; /* Moins opaque, couleur de la marque */
-        color: rgba(55, 195, 175, 0.7) !important;
-        /* weight: 3 !important; <-- Défini par JS */
-        opacity: 0.7 !important;
-        fill: none !important;
-        fillOpacity: 0 !important;
-        /* Ajout d'un tireté pour distinguer le contour */
-        stroke-dasharray: 3, 3 !important;
-    }
-
 
     /* PRINT */
     .print-header{display:none}
@@ -164,9 +140,6 @@
       <div class="item"><span class="dot prod"></span>Producteur</div>
       <div class="item"><span class="dot cons"></span>Consommateur</div>
       <div class="item"><span class="dot poi"></span>POI incendie (SDIS/SDMIS/STIS/SLIS…)</div>
-      <div class="item" style="border-left:3px solid #0064B4; border-bottom:1px dashed #969696; padding-left:4px">Limites admin. (EPCI/Comm.)</div>
-      <div class="item" style="border-left:4px solid #37C3AF; border-bottom:4px solid #37C3AF; background:rgba(55,195,175,0.15); padding-left:4px">Zone ACC chargée</div>
-      <div class="item" style="border-left:2px dashed rgba(55,195,175,0.7); border-bottom:2px dashed rgba(55,195,175,0.7); padding-left:4px">Communes membres (dans EPCI)</div>
     </div>
   </div>
 
@@ -192,26 +165,6 @@
           <button id="exportJson" class="btn">Exporter fichier</button>
           <input id="importJson" type="file" accept="application/json">
         </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Charger une zone ACC (Commune / EPCI)</legend>
-        <div class="row" style="margin-bottom:6px">
-          <label class="small">Épaisseur du trait (Zone chargée) :</label>
-          <input id="adminWeightInput" type="number" min="1" max="10" value="6" step="1" style="width:60px" aria-label="Épaisseur du trait de la zone chargée">
-        </div>
-        <div class="row">
-          <select id="adminType" aria-label="Type de limite">
-            <option value="communes">Commune</option>
-            <option value="epcis">EPCI</option>
-          </select>
-          <input id="adminQuery" type="text" placeholder="Nom ou code (ex: Grenoble)" style="flex:1" aria-label="Nom ou code de la zone">
-        </div>
-        <div class="row" style="margin-top:6px">
-          <button id="searchAdminBtn" class="btn">Rechercher</button>
-          <button id="clearAdminBtn" class="btn secondary">Effacer la zone</button>
-        </div>
-        <div id="adminResults" class="small" aria-live="polite" style="margin-top:6px"></div>
       </fieldset>
 
       <fieldset>
@@ -253,7 +206,7 @@
 
       <fieldset>
         <legend>Producteur par défaut</legend>
-        <div class="small">Adresse : <em>210 Les Espinasses, 38250 Villard-de-Lans</em></div>
+        <div class="small">Adresse : <em>1159 Rue de la Galandrine, 38210 Saint-Quentin-sur-Isère</em></div>
         <div style="margin-top:6px"><button id="resetDefaultBtn" class="btn secondary">Réinitialiser le défaut</button></div>
       </fieldset>
 
@@ -278,18 +231,6 @@
       const poiInRangeEl = document.getElementById('poiInRange');
       const mapEl = document.getElementById('map');
 
-      // Styles pour les contours de communes membres (dans EPCI chargé)
-      // L'épaisseur (weight) sera définie dynamiquement par JS
-      const INNER_COMMUNE_STYLE = {
-          color: 'rgba(55, 195, 175, 0.7)', 
-          weight: 3, // Valeur par défaut si non dynamique
-          opacity: 0.7, 
-          fillColor: 'transparent', 
-          fillOpacity: 0,
-          dashArray: '3, 3', 
-          className: 'loaded-commune-inner' 
-      };
-
       // Utils
       const eps = 1e-9; const toRad = d => d*Math.PI/180;
       const esc = s => String(s||'').replace(/[&<>\"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[c]));
@@ -307,7 +248,7 @@
       function unprojectLocal(lat0,lon0,x,y){ return {lat:lat0 + y/111.32, lng: lon0 + x/(111.32*Math.cos(lat0*Math.PI/180))}; }
       function dist2(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return dx*dx+dy*dy; }
       function circleBy2(a,b){ return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,r:Math.sqrt(dist2(a,b))/2}; }
-      function circleBy3(a,b,c){ const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y; const E=A*(a.x+b.x)+B*(a.y+b.y); const F=C*(a.x+c.x)+D*(a.y+c.y); const G=2*(A*(c.y-b.y)-B*(c.x-a.x));
+      function circleBy3(a,b,c){ const A=b.x-a.x, B=b.y-a.y, C=c.x-a.x, D=c.y-a.y; const E=A*(a.x+b.x)+B*(a.y+b.y); const F=C*(a.x+c.x)+D*(a.y+c.y); const G=2*(A*(c.y-b.y)-B*(c.x-b.x));
         if(Math.abs(G)<1e-12) return null; const x=(D*E-B*F)/G, y=(A*F-C*E)/G, r=Math.hypot(x-a.x,y-a.y); return {x,y,r}; }
       function inCircle(c,p){ return Math.hypot(c.x-p.x,c.y-p.y) <= c.r + 1e-9; }
       function minimalEnclosingCircle(pointsLL){
@@ -360,11 +301,6 @@
       const participantLayer = L.layerGroup().addTo(map);
       const poiLayer = L.layerGroup().addTo(map);
       const poiSeen = new Set(); // anti-doublons
-      
-      // --- COUCHE: Zone ACC Chargée et Limites Admin Chargées par API ---
-      const zoneAccLayer = L.layerGroup().addTo(map);
-      let currentAdminZone = null; // {name, type, layer}
-      let loadedZoneLayer = null; // Référence au L.GeoJSON du contour principal
 
       // UI helpers
       function selectedType(){ return document.querySelector('input[name="ptype"]:checked').value; }
@@ -380,12 +316,7 @@
         if (sisChecked() || ruralFlag) return 20;
         return currentDiameterRaw();
       }
-      function getCurrentAdminWeight(){
-          const v = parseFloat(document.getElementById('adminWeightInput').value);
-          // Valeur entre 1 et 10, défaut 6 (pour une bonne visibilité)
-          return (isNaN(v) || v < 1 || v > 10) ? 6 : v; 
-      }
-      function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''} ` : 'Aucun point.'; }
+      function updateCount(){ const c=document.getElementById('count'); const n=participants.length; const np=participants.filter(p=>p.type==='producer').length; c.textContent = n? `${n} point${n>1?'s':''} dont ${np} producteur${np>1?'s':''}.` : 'Aucun point.'; }
       function setPoiStats(){ poiStatsEl.textContent = String(pois.length); }
 
       // Ruralité (expérimental) — si un producteur “par défaut” ou premier producteur dans une commune rurale, on force 20 km
@@ -488,7 +419,7 @@
         if(!mec){ tSet(statusEl,'Centre libre non calculable.'); poiInRangeEl.textContent='0'; return; }
         const pass = mec.r <= R + eps;
 
-        vizCircle = L.circle([mec.center.lat,mec.center.lng],{ radius:R*1000,color:'#6D28D9',weight:4,fill:false,opacity:1.0,dashArray:'6 6' })
+        vizCircle = L.circle([mec.center.lat,mec.center.lng],{ radius:R*1000,color:'#6D28D9',weight:2,fill:false,opacity:0.9,dashArray:'6 6' })
           .addTo(map).bindTooltip('Centre libre (visualisation) — centre non défini',{className:'center-free-tip'});
 
         styleParticipants(mec.center, R);
@@ -529,311 +460,6 @@
         poiInRangeEl.textContent = String(cnt);
       }
 
-      // --- COUCHE: Limites Administratives de Référence (chargement du fichier GeoJSON) ---
-      const limitesAdminLayer = L.layerGroup().addTo(map); 
-      let geoJsonLayer = null; 
-      
-      function styleLimites(feature) {
-          if (!map || !map.getZoom) return { weight: 0 }; 
-          const zoom = map.getZoom();
-          const type = feature.properties.type_limite || 'COMMUNE'; 
-          const zoomMinCommune = 10; 
-
-          if (type === 'EPCI') {
-              return {
-                  color: 'rgba(0, 100, 180, 1.0)', 
-                  weight: 4, // Épaisseur augmentée (était 3)
-                  opacity: 1,
-                  fillColor: 'rgba(0, 100, 180, 0.05)', 
-                  fillOpacity: 0.05,
-                  lineCap: 'round', lineJoin: 'round', zIndex: 400 
-              };
-          }
-
-          if (type === 'COMMUNE') {
-              if (zoom >= zoomMinCommune) {
-                  return {
-                      color: 'rgba(150, 150, 150, 0.8)', 
-                      weight: 1.5, // Épaisseur augmentée (était 1)
-                      opacity: 0.8,
-                      dashArray: '4, 4', 
-                      fillColor: 'transparent', fillOpacity: 0.0, zIndex: 300 
-                  };
-              } else {
-                  return { weight: 0, opacity: 0, fillOpacity: 0 };
-              }
-          }
-          return { weight: 0 }; 
-      }
-
-      async function loadLimites() {
-          if(geoJsonLayer){ limitesAdminLayer.removeLayer(geoJsonLayer); geoJsonLayer = null; }
-          
-          try {
-              // URL à remplacer par votre GeoJSON fusionné (EPCI + Communes de l'Isère)
-              const urlGeoJSON = 'communes-vercors-filtrees.geojson'; 
-              
-              const response = await fetch(urlGeoJSON);
-              if (!response.ok) throw new Error('Fichier GeoJSON limites non trouvé.');
-              
-              const data = await response.json();
-              
-              data.features.forEach(f => {
-                  if(!f.properties.type_limite) {
-                      f.properties.type_limite = f.properties.NOM_COM ? 'COMMUNE' : 'ZONE'; 
-                  }
-                  if(!f.properties.nom) {
-                      f.properties.nom = f.properties.NOM_COM || 'Zone Administrative'; 
-                  }
-              });
-
-              geoJsonLayer = L.geoJSON(data, {
-                  style: styleLimites, 
-                  onEachFeature: function(feature, layer) {
-                      const name = feature.properties.nom;
-                      const type = feature.properties.type_limite;
-                      layer.bindTooltip(`<strong>${esc(type)}</strong><br>${esc(name)}`, { sticky: true });
-                  }
-              }).addTo(limitesAdminLayer);
-
-              tSet(statusEl, `Limites administratives chargées (${data.features.length} entités).`, 'ok');
-              map.fitBounds(geoJsonLayer.getBounds().pad(0.1));
-
-          } catch (error) {
-              console.error("Erreur de chargement des limites administratives :", error);
-              tSet(statusEl, 'Erreur : Limites admin. non chargées.', 'ko');
-          }
-      }
-      map.on('zoomend', function() { if (geoJsonLayer) geoJsonLayer.setStyle(styleLimites); });
-
-      // --- NOUVELLE FONCTIONNALITÉ : Chargement de zone EPCI/Commune par API ---
-      
-      function clearLoadedZone() {
-          if (zoneAccLayer) {
-              zoneAccLayer.clearLayers(); // Efface toutes les couches : contour principal + communes internes
-              loadedZoneLayer = null;
-              currentAdminZone = null;
-              tSet(document.getElementById('adminResults'), 'Zone chargée effacée.', '');
-          }
-      }
-
-      // 1. Chercher le code INSEE/SIREN par nom
-      async function searchAdminBoundary(query, type) {
-          const resultsEl = document.getElementById('adminResults');
-          resultsEl.innerHTML = 'Recherche…';
-
-          try {
-              let url = `https://geo.api.gouv.fr/${type}?nom=${encodeURIComponent(query)}&fields=nom,code,siren,codeDepartement,type`;
-              // Boost population pour les grandes villes/EPCI
-              if (type === 'communes' || type === 'epcis') url += '&boost=population&limit=5';
-              
-              const response = await fetch(url);
-              if (!response.ok) throw new Error('Erreur API Geo.');
-
-              const data = await response.json();
-
-              if (!data || data.length === 0) {
-                  resultsEl.textContent = `Aucun(e) ${type === 'communes' ? 'commune' : 'EPCI'} trouvé(e) pour "${query}".`;
-                  return;
-              }
-
-              // Afficher les résultats sous forme de liste cliquable
-              const ul = document.createElement('ul');
-              data.forEach(item => {
-                  const li = document.createElement('li');
-                  const a = document.createElement('a');
-                  a.href = '#';
-                  const name = item.nom || item.intitule;
-                  const code = item.code || item.siren;
-                  a.textContent = `${name} (${code})` + (item.codeDepartement ? ` — Dept ${item.codeDepartement}` : '');
-                  
-                  // Stocker les infos pour le chargement du GeoJSON
-                  a.dataset.code = code;
-                  a.dataset.name = name;
-                  a.dataset.type = type;
-
-                  a.onclick = (e) => {
-                      e.preventDefault();
-                      loadAdminBoundary(a.dataset.code, a.dataset.type, a.dataset.name);
-                      resultsEl.innerHTML = `Chargement de ${a.textContent}...`;
-                  };
-                  li.appendChild(a);
-                  ul.appendChild(li);
-              });
-
-              resultsEl.innerHTML = '';
-              resultsEl.appendChild(ul);
-
-          } catch (error) {
-              console.error('Erreur de recherche administrative :', error);
-              resultsEl.textContent = 'Erreur lors de la recherche de la zone.';
-          }
-      }
-
-      // 3. Nouvelle fonction pour charger les communes d'un EPCI
-      async function loadInnerCommunes(epciCode, epciName, mainWeight) {
-          const resultsEl = document.getElementById('adminResults');
-          const prevHtml = resultsEl.innerHTML;
-          resultsEl.innerHTML = prevHtml + '<br>Récupération des communes membres...';
-
-          try {
-              // 3.1: Récupérer la liste des communes de l'EPCI
-              const listUrl = `https://geo.api.gouv.fr/epcis/${epciCode}/communes?fields=nom,code`;
-              const listResponse = await fetch(listUrl);
-              if (!listResponse.ok) throw new Error('Erreur liste communes.');
-
-              const communesList = await listResponse.json();
-              if (communesList.length === 0) {
-                  resultsEl.innerHTML = prevHtml + '<br>Aucune commune membre trouvée.';
-                  return;
-              }
-
-              resultsEl.innerHTML = prevHtml + `<br>Chargement des contours de ${communesList.length} communes...`;
-              
-              // Calcule l'épaisseur pour les communes membres (moitié de l'épaisseur principale, min 1)
-              const innerWeight = Math.max(1, Math.round(mainWeight * 0.5));
-              const dynamicInnerStyle = {
-                  ...INNER_COMMUNE_STYLE,
-                  weight: innerWeight, 
-              };
-              
-              // 3.2: Charger le GeoJSON pour chaque commune (en parallèle pour la vitesse)
-              let loadedCount = 0;
-              const communePromises = communesList.map(async (commune) => {
-                  try {
-                      // Note: L'API Geo utilise le code (INSEE) même pour les EPCI ici.
-                      const contourUrl = `https://geo.api.gouv.fr/communes/${commune.code}?format=geojson&geometry=contour`;
-                      const contourResponse = await fetch(contourUrl);
-                      if (!contourResponse.ok) throw new Error('Erreur contour commune.');
-                      
-                      const data = await contourResponse.json();
-                      const feature = data.features?.[0];
-
-                      if (feature) {
-                          // Note: L.geoJSON peut prendre un style par défaut, qui sera stocké dans les options de la couche
-                          L.geoJSON(feature, {
-                              style: dynamicInnerStyle,
-                              onEachFeature: function(feature, layer) {
-                                  layer.bindTooltip(`Commune membre : ${esc(commune.nom)}`);
-                              }
-                          }).addTo(zoneAccLayer);
-                          loadedCount++;
-                      }
-                  } catch (err) {
-                      console.warn(`Erreur de chargement pour la commune ${commune.nom} (${commune.code}):`, err);
-                  }
-              });
-
-              await Promise.allSettled(communePromises);
-
-              resultsEl.innerHTML = `Zone <strong>${esc(epciName)}</strong> chargée. ${loadedCount} contours de communes affichés.`;
-
-          } catch (error) {
-              console.error('Erreur lors du chargement des communes internes :', error);
-              resultsEl.innerHTML = prevHtml + '<br>Échec du chargement des communes membres.';
-          }
-      }
-      
-      // 2. Charger le GeoJSON du contour principal et des communes si EPCI
-      async function loadAdminBoundary(code, type, name) {
-          clearLoadedZone(); // Efface l'ancienne zone
-          const resultsEl = document.getElementById('adminResults');
-          resultsEl.innerHTML = `Chargement de la géométrie de ${name}...`;
-
-          try {
-              // --- 2.1 Chargement du contour principal (EPCI ou Commune) ---
-              const geomType = 'contour'; 
-              let endpoint = `https://geo.api.gouv.fr/${type}/${code}`;
-              let url = `${endpoint}?format=geojson&geometry=${geomType}`;
-              
-              const response = await fetch(url);
-              if (!response.ok) throw new Error('Erreur de récupération GeoJSON du contour principal.');
-
-              const data = await response.json();
-              const feature = data.features?.[0] || data.features;
-              if (!feature) {
-                   resultsEl.textContent = `Géométrie non trouvée pour ${name}.`;
-                   return;
-              }
-              
-              // Récupère l'épaisseur choisie par l'utilisateur
-              const mainWeight = getCurrentAdminWeight(); 
-
-              // Affichage du polygone principal (style loaded-zone)
-              loadedZoneLayer = L.geoJSON(feature, {
-                  style: {
-                      color: '#37C3AF', 
-                      weight: mainWeight, // Utilisation de l'épaisseur dynamique
-                      opacity: 0.8, 
-                      fillColor: '#37C3AF', 
-                      fillOpacity: 0.15,
-                      className: 'loaded-zone' // IMPORTANT pour le style CSS et la mise à jour dynamique
-                  },
-                  onEachFeature: function(feature, layer) {
-                      layer.bindPopup(`<strong>Zone ACC : ${esc(name)}</strong><br>${type === 'communes' ? 'Commune' : 'EPCI'}<br>Code : ${code}`);
-                      layer.bindTooltip(`${esc(name)} (Zone ACC)`, { permanent: true, direction: 'center', className: 'loaded-zone-tooltip' });
-                  }
-              }).addTo(zoneAccLayer);
-              
-              // Centrer la carte sur la zone
-              const bounds = loadedZoneLayer.getBounds();
-              map.fitBounds(bounds.pad(0.05));
-
-              // --- 2.2 Chargement des communes internes si c'est un EPCI ---
-              if (type === 'epcis') {
-                  // Le code est le SIREN de l'EPCI dans le cas de l'API geo
-                  await loadInnerCommunes(code, name, mainWeight); // Passage de l'épaisseur
-              }
-
-              currentAdminZone = { name, type, code }; // Simplification de l'objet
-              resultsEl.innerHTML = `Zone <strong>${esc(name)}</strong> chargée et affichée.`;
-
-          } catch (error) {
-              console.error('Erreur de chargement GeoJSON :', error);
-              resultsEl.textContent = 'Échec du chargement de la géométrie.';
-          }
-      }
-
-      // Fonction pour mettre à jour le style de la zone chargée (et des communes internes)
-      function refreshAdminZoneStyle() {
-          if (!zoneAccLayer) return;
-
-          const mainWeight = getCurrentAdminWeight();
-          const innerWeight = Math.max(1, Math.round(mainWeight * 0.5));
-
-          // Parcourt toutes les couches ajoutées à la zone ACC
-          zoneAccLayer.eachLayer(layer => {
-              // Récupère la classe définie lors de la création de la couche (stockée dans layer.options)
-              const className = layer.options.className;
-              
-              if (className === 'loaded-zone') {
-                  // Contour principal
-                  layer.setStyle({ weight: mainWeight });
-              } else if (className === 'loaded-commune-inner') {
-                  // Contours des communes membres
-                  layer.setStyle({ weight: innerWeight });
-              }
-          });
-      }
-      
-      // Gestion des événements du nouveau Fieldset
-      document.getElementById('searchAdminBtn').addEventListener('click', () => {
-          const type = document.getElementById('adminType').value;
-          const query = document.getElementById('adminQuery').value.trim();
-          if (query) {
-              searchAdminBoundary(query, type);
-          } else {
-              document.getElementById('adminResults').textContent = 'Veuillez entrer un nom ou un code.';
-          }
-      });
-
-      document.getElementById('clearAdminBtn').addEventListener('click', clearLoadedZone);
-
-      // Listener pour le nouveau champ d'épaisseur : met à jour le style en temps réel
-      document.getElementById('adminWeightInput').addEventListener('input', refreshAdminZoneStyle);
-
-      // --- FIN NOUVELLE FONCTIONNALITÉ ---
-
       // UI top bar
       document.getElementById('limitSel').addEventListener('change', (e)=>{ const v=e.target.value; const custom=document.getElementById('customKm'); custom.style.display=(v==='custom')?'inline-block':'none'; refreshACC(); });
       document.getElementById('customKm').addEventListener('input', refreshACC);
@@ -871,7 +497,7 @@
           customKm: document.getElementById('customKm').value,
           sis: sisChecked(), auto20: auto20Checked()
         },
-        participants: participants.map(p=>({name:p.name, lat:p.lat, lng:p.lng, type:p.type, flags:p.flags||{}}))
+        participants: participants.map(p=>({name:p.name, lat:p.lat, lng:p.lng, type:p.type, flags:p.flags||{} }))
       }; }
       function applyState(st){
         participants.slice().forEach(p=> removeParticipant(p.id));
@@ -898,7 +524,11 @@
         const name=(document.getElementById('projName').value||'Projet 1').trim()||'Projet 1';
         const D=computeAllowedDiameter();
         const n=participants.length, np=participants.filter(p=>p.type==='producer').length, nc=participants.filter(p=>p.type==='consumer').length;
-        document.getElementById('printMeta').textContent = `${name} — D=${D} km — Points: ${n} (Prod ${np}, Cons ${nc}) — ${fmtDate(new Date())}`;
+        
+        // Ajout des coordonnées d'Echome Énergies à l'export PDF
+        const contactLine = ' | Tél: 04 76 37 34 62 | E-mail: contact@echome-energies.fr';
+
+        document.getElementById('printMeta').textContent = `${name} — D=${D} km — Points: ${n} (Prod ${np}, Cons ${nc}) ${contactLine} — ${fmtDate(new Date())}`;
       }
       async function ensureTilesReady(timeout=2000){
         return new Promise(resolve=>{
@@ -1049,8 +679,9 @@
       };
 
       // Producteur par défaut
-      const DEFAULT_ADDR='210 Les Espinasses, 38250 Villard-de-Lans, France';
-      const DEFAULT_FALLBACK={lat:45.073, lng:5.55};
+      // Mise à jour de l'adresse par défaut d'Echome Energies
+      const DEFAULT_ADDR='1159 Rue de la Galandrine, 38210 Saint-Quentin-sur-Isère, France';
+      const DEFAULT_FALLBACK={lat:45.247, lng:5.568}; // Coordonnées approximatives Saint-Quentin-sur-Isère
       async function geocodeDefault(addr){
         try{ const r=await fetch('https://photon.komoot.io/api/?q='+encodeURIComponent(addr)+'&lang=fr&limit=1'); if(r.ok){ const j=await r.json(); const f=j.features?.[0]; if(f) return {lat:f.geometry.coordinates[1], lng:f.geometry.coordinates[0]}; } }catch(_){}
         try{ const r=await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q='+encodeURIComponent(addr)); if(r.ok){ const j=await r.json(); const f=j[0]; if(f) return {lat:+f.lat, lng:+f.lon}; } }catch(_){}
@@ -1092,7 +723,6 @@
 
       // Lancer
       try{ initDefaultProducer(); }catch(_){ }
-      loadLimites(); // Chargement des limites administratives (fichier GeoJSON local)
       layout();
       tSet(statusEl,'Prêt.');
       window.addEventListener('error', e=>{ tSet(statusEl,'Erreur JS : '+e.message); });
